@@ -1,27 +1,22 @@
 parallelized blat
 blat with multi-threads support
 
-Copyright (C) 2012  Wang Meng
+Copyright (C) 2012 - 2014  Wang Meng
 
-when the query file format is fasta, you can specify many threads to process it. It can reduce run time linearly, and use almost equal memory as the original blat program. This is useful when you blat a big query file to a huge reference like human whole genome sequence.
-
-The program is under GUN v3 license.
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+when the query file format is fasta, you can specify many threads to process
+it. It can reduce run time linearly, and use almost equal memory as the
+original blat program. This is useful when you blat a big query file to a
+huge reference like human whole genome sequence.
 
 
-The program is based on the original blat program which was written by Jim Kent.
+The program is based on the original blat program which was written by
+Jim Kent.
+
+
+pblat is modified from blat, the licence is the same as blat. The source code
+and executables are freely available for academic, nonprofit and personal use.
+Commercial licensing information is available on the Kent Informatics website.
+
 
 Contact me: wangm@mail.cbi.pku.edu.cn
 
