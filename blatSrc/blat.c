@@ -939,7 +939,7 @@ int main(int argc, char *argv[])
     out[0]=mustOpen(argv[3], "w");
     for (i=1; i<threads; i++)
     {
-        sprintf(buf, "%d_%s.tmp", i, argv[3]);
+        sprintf(buf, "%s.tmp.%d", argv[3], i);
         out[i] = mustOpen(buf, "w+");
     }
 
@@ -991,7 +991,7 @@ int main(int argc, char *argv[])
                 }
             }
             carefulClose(&(out[i]));
-            sprintf(buf, "%d_%s.tmp", i, argv[3]);
+            sprintf(buf, "%s.tmp.%d", argv[3], i);
             remove(buf);
         }
     }
