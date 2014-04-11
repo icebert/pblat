@@ -6,23 +6,23 @@
  *    The array can be resized as it grows.
  *  By preserving the relationship that the children of n are at 2n+1 and 2n+2,
  *  and therefore the parent of n is at (n-1)/2, we can save alot of pointer
- *  manipulation and get some speed.
+ *  manipulation and get some speed.  
  *    This routine could for instance be used at the heart of a multi-way mergesort
  *  or other situation such as a priority queue.
  *
  */
 
-struct quickHeap
+struct quickHeap 
 /* A quick array heap. */
-{
+    {
     void **heap;
     int heapCount;
     int heapMax;
     int (*compareFunc)(const void *elem1, const void *elem2);
-};
+    };
 
-struct quickHeap *newQuickHeap(int initSize,
-                               int (*compare )(const void *elem1,  const void *elem2));
+struct quickHeap *newQuickHeap(int initSize, 
+   int (*compare )(const void *elem1,  const void *elem2));
 /* Create a new array quick heap of initial size specified,
  * The compare function must return > 0 if elem1 > elem2, etc.*/
 

@@ -14,8 +14,12 @@ void logOpenSyslog(char* program, char *facility);
 void logOpenFile(char* program, char *logFile);
 /* Initialize logging to the specified file.  Append to the file if it exists.
  * This adds a warn and errAbort handlers that do logging.  If custom handlers
- * are added, they should call logErrorVa().
+ * are added, they should call logErrorVa(). 
  */
+
+void logSetMinPriority(char *minPriority);
+/* set minimum priority to log, which is one of the syslog priority names,
+ * even when logging to a file */
 
 FILE *logGetFile();
 /* Returns the log FILE object if file logging is enabled, or NULL if it
@@ -27,7 +31,7 @@ void logErrorVa(char *format, va_list args);
 
 void logError(char *format, ...)
 /* Log an error message. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;
@@ -37,7 +41,7 @@ void logWarnVa(char *format, va_list args);
 
 void logWarn(char *format, ...)
 /* Log a warn message. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;
@@ -47,7 +51,7 @@ void logInfoVa(char *format, va_list args);
 
 void logInfo(char *format, ...)
 /* Log an info message. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;
@@ -57,7 +61,7 @@ void logDebugVa(char *format, va_list args);
 
 void logDebug(char *format, ...)
 /* Log a debug message. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;

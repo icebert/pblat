@@ -7,7 +7,7 @@ HG_DEFS=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_GNU_SOURCE -DMACHTYPE_$(MA
 
 O1 = aliType.o apacheLog.o asParse.o axt.o axtAffine.o \
     base64.o bits.o binRange.o \
-    blastOut.o blastParse.o boxClump.o boxLump.o browserGfx.o \
+    blastOut.o blastParse.o boxClump.o boxLump.o bPlusTree.o\
     cda.o chain.o chainBlock.o chainConnect.o chainToAxt.o \
     chainToPsl.o cheapcgi.o codebias.o colHash.o common.o \
     correlate.o dgRange.o diGraph.o dlist.o dnaLoad.o dnaMarkov.o \
@@ -17,10 +17,9 @@ O1 = aliType.o apacheLog.o asParse.o axt.o axtAffine.o \
     fuzzyShow.o gapCalc.o gdf.o gemfont.o gfNet.o gff.o gfxPoly.o \
     gifcomp.o gifdecomp.o gifLabel.o gifread.o gifwrite.o hash.o \
     histogram.o hmmPfamParse.o hmmstats.o htmlPage.o htmshell.o \
-    internet.o intExp.o jointalign.o jpegSize.o \
+    https.o internet.o intExp.o jointalign.o jpegSize.o \
     keys.o kxTok.o linefile.o localmem.o log.o \
     maf.o mafFromAxt.o mafScore.o md5.o \
-    mgTinyFont.o mgSmallFont.o mgMediumFont.o mgLargeFont.o mgHugeFont.o \
     memalloc.o memgfx.o mgCircle.o mgPolygon.o mime.o net.o nib.o nibTwo.o \
     nt4.o obscure.o oldGff.o oligoTm.o options.o osunix.o pairHmm.o phyloTree.o \
     pipeline.o portimpl.o pscmGfx.o psGfx.o psl.o pslGenoShow.o \
@@ -31,7 +30,7 @@ O1 = aliType.o apacheLog.o asParse.o axt.o axtAffine.o \
     slog.o snof.o snofmake.o snofsig.o \
     spacedColumn.o spacedSeed.o spaceSaver.o \
     sqlNum.o sqlList.o subText.o synQueue.o tabRow.o textOut.o tokenizer.o trix.o \
-    twoBit.o verbose.o vGfx.o vGif.o wildcmp.o wormdna.o \
+    twoBit.o udc.o verbose.o vGfx.o vGif.o wildcmp.o wormdna.o \
     xa.o xAli.o xap.o xmlEscape.o xp.o 
 
 O2 = bandExt.o crudeali.o ffAliHelp.o ffSeedExtend.o fuzzyFind.o \
@@ -39,7 +38,7 @@ O2 = bandExt.o crudeali.o ffAliHelp.o ffSeedExtend.o fuzzyFind.o \
     patSpace.o supStitch.o trans3.o
 
 all: blat.o jkOwnLib.a jkweb.a
-	$(CC) -O  -o blat blat.o jkOwnLib.a jkweb.a  -lm -lpthread
+	$(CC) -O  -o pblat blat.o jkOwnLib.a jkweb.a  -lm -lpthread
 	rm -f *.o *.a
 
 jkweb.a: $(O1)
@@ -59,5 +58,5 @@ $(O2): %.o: jkOwnLib/%.c
 
 
 clean:
-	rm -f *.o *.a blat
+	rm -f *.o *.a pblat
 

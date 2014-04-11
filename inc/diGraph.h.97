@@ -8,15 +8,15 @@
 
 struct diGraph
 /* A directed graph. */
-{
+    {
     struct dgNode *nodeList;
     struct hash *nodeHash;
     struct dlList *edgeList;
-};
+    };
 
 struct dgNode
 /* A node on a directed graph */
-{
+    {
     struct dgNode *next;   /* Next in master node list. */
     char *name;            /* Name of node (allocated in hash). */
     void *val;             /* Value of node. */
@@ -30,38 +30,38 @@ struct dgNode
     bool conn;	        /* Flag for connection algorithms. */
     bool flagA;         /* Flag used in rangeGraph algorithms. */
     bool flagB;         /* Currently unused flag. */
-};
+    };
 
 struct dgEdge
 /* An edge on graph */
-{
+    {
     void *val;		/* Value of edge. */
     struct dgNode *a;   /* Node on incoming side. */
     struct dgNode *b;   /* Node on outgoing side. */
     bool unflippable;	/* True if can't flip this edge (specialized ooGreedy thing really) */
-};
+    };
 
 struct dgConnection
 /* Connects one node to another. Linked to edge. */
-{
+    {
     struct dgConnection *next;  /* Next in list. */
     struct dgNode *node;        /* Node this connects to. */
     struct dlNode *edgeOnList;  /* Associated edge. */
-};
+    };
 
 struct dgNodeRef
 /* A reference to a node. */
-{
+    {
     struct dgNodeRef *next;	/* Next in list. */
     struct dgNode *node;        /* Pointer to node. */
-};
+    };
 
 struct dgEdgeRef
 /* A reference to an edge. */
-{
+    {
     struct dgEdgeRef *next;	/* Next in list. */
     struct dgEdge *edge;        /* Reference to edge. */
-};
+    };
 
 struct diGraph *dgNew();
 /* Return a new directed graph object. */
@@ -74,7 +74,7 @@ struct dgNode *dgAddNode(struct diGraph *dg, char *name, void *val);
 
 struct dgNode *dgAddNumberedNode(struct diGraph *dg, int id, void *val);
 /* Create new node with a number instead of a name. */
-
+ 
 struct dgNode *dgFindNode(struct diGraph *dg, char *name);
 /* Find existing node in graph. */
 
@@ -98,7 +98,7 @@ struct dgEdge *dgConnectWithVal(struct diGraph *dg, struct dgNode *a, struct dgN
 /* Connect node a to node b and put val on edge. */
 
 struct dgEdge *dgConnectUnflippable(struct diGraph *dg, struct dgNode *a, struct dgNode *b,
-                                    void *val);
+    void *val);
 /* Connect a to b with an edge than can't be flipped. */
 
 void dgDisconnect(struct diGraph *dg, struct dgNode *a, struct dgNode *b);
@@ -118,11 +118,11 @@ struct dgNodeRef *dgFindConnectedToNode(struct diGraph *dg, struct dgNode *a);
  * slFreeList this list when done. */
 
 struct dgNodeRef *dgFindNewConnected(struct diGraph *dg, struct dgNode *a);
-/* Find a connected component guaranteed not to be covered before
+/* Find a connected component guaranteed not to be covered before 
  * that includes a. */
 
 struct dgNodeRef *dgFindNewFlippableConnected(struct diGraph *dg, struct dgNode *a);
-/* Find a connected component guaranteed not to be covered before
+/* Find a connected component guaranteed not to be covered before 
  * that includes a.  Connected components must be connected by flippable
  * edges. */
 
@@ -130,7 +130,7 @@ struct dgNodeRef *dgFindNextConnected(struct diGraph *dg);
 /* Return list of nodes that make up next connected component,
  * or NULL if no more components.  slFreeList this when
  * done.  Call "dgClearConnFlags" before first call to this.
- * Do not call dgFindConnectedToNode between dgFindFirstConnected
+ * Do not call dgFindConnectedToNode between dgFindFirstConnected 
  * and this as they use the same flag variables to keep track of
  * what vertices are used. */
 
@@ -159,24 +159,24 @@ boolean dgParentsAllVisited(struct dgNode *node);
 struct dgNodeRef *dgConstrainedPriorityOrder(struct diGraph *dg);
 /* Return traversal of graph in priority order subject to
  * constraint that all parents must be output before
- * their children regardless of node priority.
+ * their children regardless of node priority. 
  * Graph must be cycle free. */
 
 boolean dgRangesConsistent(struct diGraph *rangeGraph,
-                           boolean (*findEdgeRange)(struct dgEdge *edge, int *retMin, int *retMax) );
+   boolean (*findEdgeRange)(struct dgEdge *edge, int *retMin, int *retMax) );
 /* Return TRUE if graph with a range of allowable distances associated
  * with each edge is internally consistent. */
 
 boolean dgAddedRangeConsistent(struct diGraph *rangeGraph,
-                               struct dgNode *a, struct dgNode *b, int abMin, int abMax,
-                               boolean (*findEdgeRange)(struct dgEdge *edge, int *retMin, int *retMax) );
+   struct dgNode *a, struct dgNode *b, int abMin, int abMax,
+   boolean (*findEdgeRange)(struct dgEdge *edge, int *retMin, int *retMax) );
 /* Return TRUE if graph with a range of allowable distances associated
  * with each edge would be internally consistent if add edge from a to b
  * with given min/max values. */
 
 struct dgEdgeRef *dgFindSubEdges(struct diGraph *dg, struct dgNodeRef *subGraph,
-                                 boolean onlyFlippable);
-/* Return list of edges in graph that connected together nodes in subGraph.
+	boolean onlyFlippable);
+/* Return list of edges in graph that connected together nodes in subGraph. 
  * Optionally return only flippable edges. */
 
 void dgSwapEdges(struct diGraph *dg, struct dgEdgeRef *erList);

@@ -3,7 +3,6 @@
 #include "common.h"
 #include "spacedSeed.h"
 
-static char const rcsid[] = "$Id: spacedSeed.c,v 1.1 2005/01/10 00:02:37 kent Exp $";
 
 /* Seeds - the weight 9 and 11 seeds are from PatternHunter paper.
  * The weights 10,12,13,14,15,16,17 and 18 are from the Choi, Zeng,
@@ -36,31 +35,31 @@ char *spacedSeeds[] = {
 int spacedSeedMaxWeight()
 /* Return max weight of spaced seed. */
 {
-    return ArraySize(spacedSeeds)-1;
+return ArraySize(spacedSeeds)-1;
 }
 
 int *spacedSeedOffsets(int weight)
 /* Return array with offsets for seed of given weight. */
 {
-    char *seed;
-    int *output, offset, outCount = 0, seedSize;
+char *seed;
+int *output, offset, outCount = 0, seedSize;
 
-    assert(weight >= 1 && weight < ArraySize(spacedSeeds));
-    seed = spacedSeeds[weight];
-    seedSize = strlen(seed);
-    AllocArray(output, weight);
-    for (offset=0; offset<seedSize; ++offset)
+assert(weight >= 1 && weight < ArraySize(spacedSeeds));
+seed = spacedSeeds[weight];
+seedSize = strlen(seed);
+AllocArray(output, weight);
+for (offset=0; offset<seedSize; ++offset)
     {
-        if (seed[offset] == '1')
-            output[outCount++] = offset;
+    if (seed[offset] == '1')
+	output[outCount++] = offset;
     }
-    assert(outCount == weight);
-    return output;
+assert(outCount == weight);
+return output;
 }
 
 int spacedSeedSpan(int weight)
 /* Return span of seed of given weight */
 {
-    return strlen(spacedSeeds[weight]);
+return strlen(spacedSeeds[weight]);
 }
 

@@ -5,19 +5,19 @@
 
 struct gfxPoint
 /* A two-dimensional point, typically in pixel coordinates. */
-{
+    {
     struct gfxPoint *next;
     int x, y;		/* Position */
-};
+    };
 
 struct gfxPoly
 /* A two-dimensional polygon */
-{
+    {
     struct gfxPoly *next;
     int ptCount;		/* Number of points. */
     struct gfxPoint *ptList;	/* First point in list, which is circular. */
     struct gfxPoint *lastPoint;	/* Last point in list. */
-};
+    };
 
 struct gfxPoly *gfxPolyNew();
 /* Create new (empty) polygon */

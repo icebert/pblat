@@ -5,7 +5,7 @@ struct gfRange
 /* A range of bases found by genoFind.  Recursive
  * data structure.  Lowest level roughly corresponds
  * to an exon. */
-{
+    {
     struct gfRange *next;  /* Next in singly linked list. */
     int qStart;	/* Start in query */
     int qEnd;	/* End in query */
@@ -19,7 +19,7 @@ struct gfRange
     struct trans3 *t3;	/* Translated frame or NULL. */
     int tTotalSize;	/* Size of entire target sequence, not just loaded parts.  Not set until late in the game. */
     char tStrand;	/* Just for PCR. */
-};
+    };
 
 void gfRangeFree(struct gfRange **pEl);
 /* Free a single dynamically allocated gfRange such as created
@@ -40,25 +40,25 @@ struct gfRange *gfRangesBundle(struct gfRange *exonList, int maxIntron);
 struct ssFfItem *gfRangesToFfItem(struct gfRange *rangeList, aaSeq *qSeq);
 /* Convert ranges to ssFfItem's. */
 
-struct ssBundle *ffSeedExtInMem(struct genoFind *gf, struct dnaSeq *qSeq, Bits *qMaskBits,
-                                int qOffset, struct lm *lm, int minScore, boolean isRc);
+struct ssBundle *ffSeedExtInMem(struct genoFind *gf, struct dnaSeq *qSeq, Bits *qMaskBits, 
+	int qOffset, struct lm *lm, int minScore, boolean isRc);
 /* Do seed and extend type alignment */
 
 void dumpBuns(struct ssBundle *bunList);  /* uglyf */
 void dumpFf(struct ffAli *left, DNA *needle, DNA *hay);/* uglyf */
 
-void gfiExpandRange(struct gfRange *range, int qSize, int tSize,
-                    boolean respectFrame, boolean isRc, int expansion);
+void gfiExpandRange(struct gfRange *range, int qSize, int tSize, 
+	boolean respectFrame, boolean isRc, int expansion);
 /* Expand range to cover an additional 500 bases on either side. */
 
-struct dnaSeq *gfiExpandAndLoadCached(struct gfRange *range,
-                                      struct hash *tFileCache, char *tSeqDir, int querySize,
-                                      int *retTotalSeqSize, boolean respectFrame, boolean isRc, int expansion);
+struct dnaSeq *gfiExpandAndLoadCached(struct gfRange *range, 
+	struct hash *tFileCache, char *tSeqDir, int querySize, 
+	int *retTotalSeqSize, boolean respectFrame, boolean isRc, int expansion);
 /* Expand range to cover an additional expansion bases on either side.
  * Load up target sequence and return. (Done together because don't
  * know target size before loading.) */
 
 void gfiGetSeqName(char *spec, char *name, char *file);
-/* Extract sequence name and optionally file name from spec,
+/* Extract sequence name and optionally file name from spec, 
  * which includes nib and 2bit files.  (The file may be NULL
  * if you don't care.) */

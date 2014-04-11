@@ -6,7 +6,7 @@
  * are separated by lines starting with '//'  Generally lines
  * starting with XX are empty and used to make the records more
  * human readable.   Here is an example record:
-
+ 
  C  M00001
  XX
  ID  V$MYOD_01
@@ -68,7 +68,7 @@ struct hash *emblRecord(struct lineFile *lf);
  * and has string values. */
 
 struct lineFile *emblOpen(char *fileName, char type[256]);
-/* Open up embl file, verify format and optionally  return
+/* Open up embl file, verify format and optionally  return 
  * type (VV line).  Close this with lineFileClose(). */
 
 #endif /* EMBLPARSE_H */

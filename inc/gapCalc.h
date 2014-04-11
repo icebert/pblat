@@ -4,7 +4,7 @@
 #ifndef GAPCALC_H
 #define GAPCALC_H
 
-
+    
 struct gapCalc;	  /* Predeclare structure.  It's complex and private though, so
                    * real declaration is in gapCalc.c. */
 

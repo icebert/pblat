@@ -13,12 +13,12 @@
 struct nt4Seq
 /* A packed (2 bits per nucleotide) sequence.  'N's are
  * converted to 'T's. */
-{
+    {
     struct nt4Seq *next;	/* Next in list. */
     bits32 *bases;              /* Packed bases. */
     int baseCount;              /* Number of bases. */
     char *name;                 /* Name of sequence. */
-};
+    };
 
 struct nt4Seq *newNt4(DNA *dna, int size, char *name);
 /* Create a new DNA seq with 2 bits per base pair. */

@@ -14,21 +14,21 @@
 
 struct gdfDataPoint
 /* This stores data at each exon/intron boundary. */
-{
+    {
     int start;
-};
+    };
 
 struct gdfGene
 /* One structure of these for each gene (each isoform of each gene
  * actually. */
-{
+    {
     struct gdfGene *next;
     char *name;
     int dataCount;
     struct gdfDataPoint *dataPoints;
     char strand;
     UBYTE chromIx;
-};
+    };
 
 struct gdfGene *newGdfGene(char *name, int nameSize, int exonCount, char strand, UBYTE chromIx);
 /* Return a new gene. */

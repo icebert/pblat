@@ -1,4 +1,4 @@
-/* subText.h - perform text substitutions.
+/* subText.h - perform text substitutions. 
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
@@ -9,13 +9,13 @@
 struct subText
 /* Structure that holds data for a single substitution to be made.
  * The subText routines work mostly on lists of these. */
-{
+    {
     struct subText *next;	/* pointer to next substitution */
     char *in;			/* source side of substitution */
     char *out;			/* dest side of substitution */
     int inSize;			/* length of in string */
     int outSize;		/* length of out string */
-};
+    };
 
 struct subText *subTextNew(char *in, char *out);
 /* Make new substitution structure. */

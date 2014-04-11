@@ -3,7 +3,7 @@
  * for personal, academic, and non-profit purposes.  Commercial use          *
  * permitted only by explicit agreement with Jim Kent (jim_kent@pacbell.net) *
  *****************************************************************************/
-/* hmmstats.h - Stuff for doing statistical analysis in general and
+/* hmmstats.h - Stuff for doing statistical analysis in general and 
  * hidden Markov models in particular. */
 #ifndef HMMSTATS_H
 #define HMMSTATS_H
@@ -19,6 +19,12 @@ double simpleGaussean(double x);
 
 double gaussean(double x, double mean, double sd);
 /* Gaussean distribution with mean and standard deviation at point x  */
+
+double calcVarianceFromSums(double sum, double sumSquares, bits64 n);
+/* Calculate variance. */
+
+double calcStdFromSums(double sum, double sumSquares, bits64 n);
+/* Calculate standard deviation. */
 
 #endif /* HMMSTATS_H */
 

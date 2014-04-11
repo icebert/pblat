@@ -6,7 +6,7 @@
 
 struct apacheAccessLog
 /* Parsed out apache access log line */
-{
+    {
     struct apacheAccessLog *next;
     char *buf;		/* All memory for apacheAccessLog fields is allocated at once here. */
     char *ip;		/* IP Address: dotted quad of numbers, or xxx.com. */
@@ -21,15 +21,23 @@ struct apacheAccessLog
     char *num1;		/* Some number, I'm not sure what it is. */
     char *referrer;	/* Referring URL, may be NULL. */
     char *program;	/* Requesting program,  often Mozilla 4.0 */
-};
+    time_t tick;	/* Unix tick (seconds since 1970) - derived from timeStamp. */
+    int runTime;	/* Overall time (optional) in milliseconds */
+    };
 
-
-struct apacheAccessLog *apacheAccessLogParse(char *line,
-        char *fileName, int lineIx);
-/* Return a apacheAccessLog from line.  Return NULL if there's a parsing
+struct apacheAccessLog *apacheAccessLogParse(char *line, 
+	char *fileName, int lineIx);
+/* Return a apacheAccessLog from line.  Return NULL if there's a parsing 
  * problem, but don't abort. */
 
 void apacheAccessLogFree(struct apacheAccessLog **pLl);
 /* Free up apacheAccessLog. */
+
+time_t apacheAccessLogTimeToTick(char *timeStamp);
+/* Convert something like 27/Aug/2009:09:25:32 to Unix timestamp (seconds since 1970).
+ * On error returns zero. */
+
+int apacheAccessLogCmpTick(const void *va, const void *vb);
+/* Compare items to sort by tick (which tracks timestamp) */
 
 #endif /* APACHELOG_H */

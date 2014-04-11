@@ -6,11 +6,11 @@
 
 struct spacedColumn
 /* Specs on a column. */
-{
+    {
     struct spacedColumn *next;
     int start;	/* Starting index. */
     int size;	/* Size of column. */
-};
+    };
 
 #define spacedColumnFreeList slFreeList
 
@@ -36,8 +36,8 @@ struct spacedColumn *spacedColumnFromFile(char *fileName);
 int spacedColumnBiggestSize(struct spacedColumn *colList);
 /* Return size of biggest column. */
 
-boolean spacedColumnParseLine(struct spacedColumn *colList,
-                              char *line, char *row[]);
+boolean spacedColumnParseLine(struct spacedColumn *colList, 
+	char *line, char *row[]);
 /* Parse line into row according to colList.  This will
  * trim leading and trailing spaces. It will write 0's
  * into line.  Returns FALSE if there's a problem (like

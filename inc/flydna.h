@@ -25,7 +25,7 @@ char *flyFeaturesDir();
 /* Return the features directory. (Includes trailing slash.) */
 
 FILE *flyOpenGoodAli();
-/* Opens good alignment file and reads signature.
+/* Opens good alignment file and reads signature. 
  * (You can then cdaLoadOne() it.) */
 
 #endif /* FLYDNA_H */

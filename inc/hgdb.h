@@ -27,7 +27,7 @@ struct dnaSeq *hgdbFinishedSeq(char *accession);
 /* Return finished BAC sequence. */
 
 struct dnaSeq *hgdbUnfinishedSeq(char *accession);
-/* Return unfinished BAC sequence. May be in
+/* Return unfinished BAC sequence. May be in 
  * several contigs (dnaSeq returned may be a list.) */
 
 struct dnaSeq *hgdbGetSeq(char *accession);

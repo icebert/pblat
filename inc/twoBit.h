@@ -7,7 +7,7 @@
 
 struct twoBit
 /* Two bit representation of DNA. */
-{
+    {
     struct twoBit *next;	/* Next sequence in list */
     char *name;			/* Name of sequence. */
     UBYTE *data;		/* DNA at two bits per base. */
@@ -19,19 +19,19 @@ struct twoBit
     bits32 *maskStarts;		/* Starts of masked regions. */
     bits32 *maskSizes;		/* Sizes of masked regions. */
     bits32 reserved;		/* Reserved for future expansion. */
-};
+    };
 
 struct twoBitIndex
 /* An entry in twoBit index. */
-{
+    {
     struct twoBitIndex *next;	/* Next in list. */
     char *name;			/* Name - allocated in hash */
     bits32 offset;		/* Offset in file. */
-};
+    };
 
 struct twoBitFile
 /* Holds header and index info from .2bit file. */
-{
+    {
     struct twoBitFile *next;
     char *fileName;	/* Name of this file, for error reporting. */
     FILE *f;		/* Open file. */
@@ -41,7 +41,8 @@ struct twoBitFile
     bits32 reserved;	/* Reserved, always zero for now. */
     struct twoBitIndex *indexList;	/* List of sequence. */
     struct hash *hash;	/* Hash of sequences. */
-};
+    struct bptFile *bpt;	/* Alternative index. */
+    };
 
 struct twoBitSpec
 /* parsed .2bit file and sequence specs */
@@ -61,8 +62,13 @@ struct twoBitSeqSpec
 };
 
 struct twoBitFile *twoBitOpen(char *fileName);
-/* Open file, read in header and index.
+/* Open file, read in header and index.  
  * Squawk and die if there is a problem. */
+
+struct twoBitFile *twoBitOpenExternalBptIndex(char *twoBitName, char *bptName);
+/* Open file, read in header, but not regular index.  Instead use
+ * bpt index.   Beware if you use this the indexList field will be NULL
+ * as will the hash. */
 
 void twoBitClose(struct twoBitFile **pTbf);
 /* Free up resources associated with twoBitFile. */
@@ -81,14 +87,14 @@ struct dnaSeq *twoBitReadSeqFragExt(struct twoBitFile *tbf, char *name,
  * if doMask is true. */
 
 struct dnaSeq *twoBitReadSeqFrag(struct twoBitFile *tbf, char *name,
-                                 int fragStart, int fragEnd);
+	int fragStart, int fragEnd);
 /* Read part of sequence from .2bit file.  To read full
  * sequence call with start=end=0.  Note that sequence will
  * be mixed case, with repeats in lower case and rest in
  * upper case. */
 
 struct dnaSeq *twoBitReadSeqFragLower(struct twoBitFile *tbf, char *name,
-                                      int fragStart, int fragEnd);
+	int fragStart, int fragEnd);
 /* Same as twoBitReadSeqFrag, but sequence is returned in lower case. */
 
 struct dnaSeq *twoBitLoadAll(char *spec);
@@ -112,8 +118,18 @@ struct twoBit *twoBitFromDnaSeq(struct dnaSeq *seq, boolean doMask);
 struct twoBit *twoBitFromFile(char *fileName);
 /* Get twoBit list of all sequences in twoBit file. */
 
+struct twoBit *twoBitOneFromFile(struct twoBitFile *tbf, char *name);
+/* Get single sequence as two bit. */
+
+void twoBitFree(struct twoBit **pTwoBit);
+/* Free up a two bit structure. */
+
+void twoBitFreeList(struct twoBit **pList);
+/* Free a list of dynamically allocated twoBit's */
+
+
 void twoBitWriteOne(struct twoBit *twoBit, FILE *f);
-/* Write out one twoBit sequence to binary file.
+/* Write out one twoBit sequence to binary file. 
  * Note this does not include the name, which is
  * stored only in index. */
 
@@ -124,14 +140,14 @@ void twoBitWriteHeader(struct twoBit *twoBitList, FILE *f);
 boolean twoBitIsFile(char *fileName);
 /* Return TRUE if file is in .2bit format. */
 
-boolean twoBitParseRange(char *rangeSpec, char **retFile,
-                         char **retSeq, int *retStart, int *retEnd);
+boolean twoBitParseRange(char *rangeSpec, char **retFile, 
+	char **retSeq, int *retStart, int *retEnd);
 /* Parse out something in format
  *    file/path/name:seqName:start-end
  * or
  *    file/path/name:seqName
  * This will destroy the input 'rangeSpec' in the process.
- * Returns FALSE if it doesn't fit this format.
+ * Returns FALSE if it doesn't fit this format. 
  * If it is the shorter form then start and end will both
  * be returned as zero, which is ok by twoBitReadSeqFrag. */
 

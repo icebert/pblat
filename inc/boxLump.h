@@ -1,6 +1,6 @@
 /* boxLump - This will lump together boxes that overlap into the smallest
- * box that encompasses the overlap.  It will put other boxes that
- * fit in the encompassing box in there too.
+ * box that encompasses the overlap.  It will put other boxes that 
+ * fit in the encompassing box in there too. 
  *   It works by projecting the box list along one dimension at a
  * time looking for gaps between boxes. This is similar in function
  * to boxFindClumps, but a bit less precise, and quite a bit faster.

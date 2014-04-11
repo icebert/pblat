@@ -10,14 +10,14 @@
 
 struct crudeAli
 /* Stored info on a crude alignment. */
-{
+    {
     struct crudeAli *next;
     int chromIx;
     int start, end;
     int score;
     char strand;
     int qStart, qEnd;
-};
+    };
 
 struct crudeAli *crudeAliFind(DNA *probe, int probeSize, struct nt4Seq **chrome, int chromeCount, int tileSize, int minScore);
 /* Returns a list of crude alignments.  (You can free this with slFreeList() */

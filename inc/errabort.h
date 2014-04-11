@@ -1,4 +1,4 @@
-/* ErrAbort.h - our error handler.
+/* ErrAbort.h - our error handler. 
  *
  * This maintains two stacks - a warning message printer
  * stack, and a "abort handler" stack.
@@ -10,16 +10,22 @@
  * gets called.
  *
  * Most functions in this library will call errAbort()
- * if they run out of memory.
+ * if they run out of memory.  
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
 
 #ifndef ERRABORT_H
 #define ERRABORT_H
+
+boolean isErrAbortInProgress();  
+/* Flag to indicate that an error abort is in progress.
+ * Needed so that a warn handler can tell if it's really
+ * being called because of a warning or an error. */
+
 void errAbort(char *format, ...)
 /* Abort function, with optional (printf formatted) error message. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;
@@ -29,7 +35,7 @@ void vaErrAbort(char *format, va_list args);
 
 void errnoAbort(char *format, ...)
 /* Prints error message from UNIX errno first, then does errAbort. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;
@@ -54,14 +60,14 @@ void vaWarn(char *format, va_list args);
 
 void warn(char *format, ...)
 /* Issue a warning message. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;
 
 void errnoWarn(char *format, ...)
 /* Prints error message from UNIX errno first, then does rest of warning. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 1, 2)))
 #endif
 ;
@@ -77,5 +83,11 @@ void popWarnHandler();
 
 void pushWarnAbort();
 /* Push handler that will abort on warnings. */
+
+void pushSilentWarnHandler();
+/* Set warning handler to be quiet.  Do a popWarnHandler to restore. */
+
+void errAbortDebugnPushPopErr();
+/*  generate stack dump if there is a error in the push/pop functions */
 
 #endif /* ERRABORT_H */

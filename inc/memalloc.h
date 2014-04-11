@@ -1,5 +1,5 @@
 /* Let the user redirect where memory allocation/deallocation
- * happens.  'careful' routines help debug scrambled heaps.
+ * happens.  'careful' routines help debug scrambled heaps. 
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
@@ -8,12 +8,12 @@
 #define MEMALLOC_H
 
 struct memHandler
-{
+    {
     struct memHandler *next;
     void * (*alloc)(size_t size);
     void (*free)(void *vpt);
     void * (*realloc)(void* vpt, size_t size);
-};
+    };
 
 struct memHandler *pushMemHandler(struct memHandler *newHandler);
 /* Use newHandler for memory requests until matching popMemHandler.
@@ -31,7 +31,7 @@ void pushCarefulMemHandler(size_t maxAlloc);
 
 void carefulCheckHeap();
 /* Walk through allocated memory and make sure that all cookies are
- * in place. Only walks through what's been done since
+ * in place. Only walks through what's been done since 
  * pushCarefulMemHandler(). */
 
 int carefulCountBlocksAllocated();

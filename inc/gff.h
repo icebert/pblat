@@ -10,7 +10,7 @@
 
 struct gffLine
 /* A parsed line in a GFF file. */
-{
+    {
     struct gffLine *next;  /* Next line in file */
     char *seq;      /* Name of sequence. */
     char *source;   /* Program that made this line.  Not allocated here. */
@@ -27,11 +27,13 @@ struct gffLine
     char *intronId;       /* intron_id in GTF, NULL in GFF. Not allocated here. */
     char *intronStatus;   /* intron status. Not allocated here. */
     char *proteinId;      /* protein_id in GTF, NULL in GFF. Not allocated here. */
-};
+    char *geneName;       /* gene_name or NULL in GTF, NULL in GFF. Not allocated here. */
+    char *transcriptName; /* transcript_name or NULL in GTF, NULL in GFF. Not allocated here. */
+    };
 
 struct gffGroup
 /* A group of lines in a GFF file (all that share the same group field). */
-{
+    {
     struct gffGroup *next;   /* Next group in file. */
     char *name;     /* Name of group. Not allocated here. */
     char *seq;      /* Name of sequence. Not allocated here. */
@@ -41,40 +43,40 @@ struct gffGroup
     int end;        /* End of feature in sequence. End is not included. */
     char strand;    /* Strand of sequence. */
     struct gffLine *lineList;  /* List of lines in group. */
-};
+    };
 
 struct gffSource
 /* A list of sources. */
-{
+    {
     struct gffSource *next; /* Next in list. */
     char *name;	  /* Name, not allocated here. */
     unsigned int id;   /* Database ID (or just 0) */
-};
+    };
 
 struct gffFeature
 /* A list of types in GFF file. */
-{
+    {
     struct gffFeature *next; /* Next in list. */
     char *name;	  /* Name, not allocated here. */
-};
+    };
 
 struct gffSeqName
 /* A list of sequence. */
-{
+    {
     struct gffSeqName *next;  /* Next in list. */
     char *name;   /* Name, not allocated here. */
-};
+    };
 
 struct gffGeneId
 /* A list of genes. */
-{
+    {
     struct gffGeneId *next;  /* Next in list. */
     char *name;   /* Name, not allocated here. */
-};
+    };
 
 struct gffFile
 /* This keeps information on a fully parsed GFF file. */
-{
+    {
     struct gffFile *next;
     char *fileName;             /* Name of file (allocated here) */
     struct hash *seqHash;	/* A name only hash of the sequence. */
@@ -82,9 +84,7 @@ struct gffFile
     struct hash *featureHash;   /* A name only hash of gff types. */
     struct hash *groupHash;	/* Associates group names and gffGroups. */
     struct hash *geneIdHash;    /* Hash of all geneIds. */
-    struct hash *exonHash;       /* Hash of all exonIds. */
-    struct hash *intronStatusHash;/* Hash of intron statuses. */
-    struct hash *proteinIdHash;  /* Hash of all proteinIds. */
+    struct hash *strPool;       /* hash used to allocate strings */
     struct gffLine *lineList;   /* List of lines - lines may be in groupList instead. */
     struct gffSeqName *seqList; /* List of sequences in file. */
     struct gffSource *sourceList; /* List of all sources in file. */
@@ -93,7 +93,7 @@ struct gffFile
     struct gffGeneId *geneIdList;  /* List of all gene ID's. */
     bool isGtf;			/* Is this a GTF file? */
     bool typeKnown;		/* Is 'isGtf' known? */
-};
+    };
 
 void gffGroupFree(struct gffGroup **pGroup);
 /* Free up a gffGroup including lineList. */
@@ -114,8 +114,8 @@ struct gffFile *gffFileNew(char *fileName);
 void gffFileAdd(struct gffFile *gff, char *fileName, int baseOffset);
 /* Add file to gffFile. */
 
-void gffFileAddRow(struct gffFile *gff, int baseOffset, char *words[], int wordCount,
-                   char *fileName, int lineIx);
+void gffFileAddRow(struct gffFile *gff, int baseOffset, char *words[], int wordCount, 
+		char *fileName, int lineIx);
 /* Process one row of GFF file (a non-comment line parsed by tabs normally). */
 
 void gffFileFree(struct gffFile **pGff);

@@ -26,10 +26,10 @@
 
 struct ssFfItem
 /* A list of fuzzy finder alignments. */
-{
+    {
     struct ssFfItem *next;      /* Next in list. */
     struct ffAli *ff;		/* Alignment (owned by ssFfItem) */
-};
+    };
 
 void ssFfItemFree(struct ssFfItem **pEl);
 /* Free a single ssFfItem. */
@@ -40,7 +40,7 @@ void ssFfItemFreeList(struct ssFfItem **pList);
 struct ssBundle
 /* A bunch of alignments all with the same query sequence.  This
  * is the input to the stitcher.*/
-{
+    {
     struct ssBundle *next;	/* Next in list. */
     struct ssFfItem *ffList;    /* Item list - memory owned by bundle. */
     bioSeq *qSeq;        /* Query sequence (not owned by bundle.) */
@@ -51,7 +51,7 @@ struct ssBundle
     boolean isProt;		/* True if it's a protein based bundle. */
     struct trans3 *t3List;	/* Sometimes set to three translated frames. */
     boolean avoidFuzzyFindKludge;	/* Temporary flag to avoid call to fuzzyFind. */
-};
+    };
 
 void ssBundleFree(struct ssBundle **pEl);
 /* Free up one ssBundle */
@@ -60,13 +60,13 @@ void ssBundleFreeList(struct ssBundle **pList);
 /* Free up list of ssBundles */
 
 
-void ssStitch(struct ssBundle *bundle, enum ffStringency stringency,
-              int minScore, int maxToReturn);
-/* Glue together mrnas in bundle as much as possible.
+void ssStitch(struct ssBundle *bundle, enum ffStringency stringency, 
+	int minScore, int maxToReturn);
+/* Glue together mrnas in bundle as much as possible. 
  * Updates bundle->ffList with stitched together version. */
 
-struct ssBundle *ssFindBundles(struct patSpace *ps, struct dnaSeq *cSeq,
-                               char *cName, enum ffStringency stringency, boolean avoidSelfSelf);
+struct ssBundle *ssFindBundles(struct patSpace *ps, struct dnaSeq *cSeq, 
+	char *cName, enum ffStringency stringency, boolean avoidSelfSelf);
 /* Find patSpace alignments on cSeq and bundle them together. */
 
 #endif /* SUPSTITCH_H */

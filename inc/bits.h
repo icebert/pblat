@@ -1,4 +1,4 @@
-/* bits - handle operations on arrays of bits.
+/* bits - handle operations on arrays of bits. 
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
@@ -7,6 +7,9 @@
 #define BITS_H
 
 typedef unsigned char Bits;
+
+#define bitToByteSize(bitSize) ((bitSize+7)/8)
+/* Convert number of bits to number of bytes needed to store bits. */
 
 Bits *bitAlloc(int bitCount);
 /* Allocate bits. */

@@ -10,10 +10,10 @@
 
 struct keyVal
 /* A key/value pair of strings. */
-{
+    {
     char *key;
     char *val;
-};
+    };
 
 struct kvt *newKvt(int size);
 /* Get a new key value table. */
@@ -47,10 +47,10 @@ void kvtParseAdd(struct kvt *kvt, char *text);
 struct keyExp
 /* A handle on a parsed expression which can be
  * quickly evaluated.  */
-{
+    {
     void *rootExp;       /* Internally struct exp. */
     void *tokenList;     /* Internally struct tok. */
-};
+    };
 
 boolean keyExpEval(struct keyExp *exp, struct kvt *kvt);
 /* Recursively evaluate expression. */

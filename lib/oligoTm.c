@@ -1,44 +1,44 @@
 /* oligoTm - calculate melting temperature of relatively short DNA sequences.
  * This is based on the nearest-neighbor thermodynamics of bases from Breslauer,
  * Frank, Bloecker, and Markey, Proc. Natl. Acad. Sci. USA, vol 83, page 3748,
- * and uses work from see Rychlik, Spencer, Roads, Nucleic Acids Research, vol 18,
+ * and uses work from see Rychlik, Spencer, Roads, Nucleic Acids Research, vol 18, 
  * no 21.  This code was imported from the oligotm module of Whitehead Institute's
  * primer3 program, and adapted into UCSC conventions by Jim Kent.  Any redistribution
  * of this code should contain the following copyright notice from Whitehead:
  *
  * Copyright (c) 1996,1997,1998,1999,2000,2001,2004
  *         Whitehead Institute for Biomedical Research. All rights reserved.
- *
+ * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- *
+ * 
  * 1.      Redistributions must reproduce the above copyright notice, this
  * list of conditions and the following disclaimer in the  documentation
  * and/or other materials provided with the distribution.  Redistributions of
  * source code must also reproduce this information in the source code itself.
- *
+ * 
  * 2.      If the program is modified, redistributions must include a notice
  * (in the same places as above) indicating that the redistributed program is
  * not identical to the version distributed by Whitehead Institute.
- *
+ * 
  * 3.      All advertising materials mentioning features or use of this
  * software  must display the following acknowledgment:
  *         This product includes software developed by the
  *         Whitehead Institute for Biomedical Research.
- *
+ * 
  * 4.      The name of the Whitehead Institute may not be used to endorse or
  * promote products derived from this software without specific prior written
  * permission.
- *
- * We also request that use of this software be cited in publications as
- *
+ * 
+ * We also request that use of this software be cited in publications as 
+ * 
  *   Rozen, S., Skaletsky, H.  \"Primer3 on the WWW for general users
  *   and for biologist programmers.\"  In S. Krawetz and S. Misener, eds.
- *   Bioinformatics Methods and Protocols in the series Methods in
+ *   Bioinformatics Methods and Protocols in the series Methods in 
  *   Molecular Biology.  Humana Press, Totowa, NJ, 2000, pages 365-386.
  *   Code available at
  *   http://fokker.wi.mit.edu/primer3/.
- *
+ * 
  * THIS SOFTWARE IS PROVIDED BY THE WHITEHEAD INSTITUTE ``AS IS'' AND  ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE  IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE  ARE
@@ -56,7 +56,8 @@
 #include "common.h"
 #include "oligoTm.h"
 
-/*
+
+/* 
  * Tables of nearest-neighbor thermodynamics for DNA bases.  See Breslauer,
  * Frank, Bloecker, and Markey, Proc. Natl. Acad. Sci. USA, vol 83, page 3748,
  * table 2.
@@ -66,25 +67,25 @@
 #define S_A_G 208
 #define S_A_T 239
 #define S_A_N 215
-
+  
 #define S_C_A 129
 #define S_C_C 266
 #define S_C_G 278
 #define S_C_T 208
-#define S_C_N 220
-
+#define S_C_N 220  
+  
 #define S_G_A 135
 #define S_G_C 267
 #define S_G_G 266
 #define S_G_T 173
 #define S_G_N 210
-
+  
 #define S_T_A 169
 #define S_T_C 135
 #define S_T_G 129
 #define S_T_T 240
 #define S_T_N 168
-
+  
 #define S_N_A 168
 #define S_N_C 210
 #define S_N_G 220
@@ -129,7 +130,7 @@
 #define G_A_T  1500
 #define G_A_N  1575
 
-#define G_C_A  1900
+#define G_C_A  1900 
 #define G_C_C  3100
 #define G_C_G  3600
 #define G_C_T  1600
@@ -179,9 +180,9 @@
    else if ('\0' == c)  \
              goto DONE; \
    else goto ERROR \
- 
+
 double oligoTm(char *dna, double DNA_nM, double K_mM)
-/* Calculate melting point of short DNA sequence given DNA concentration in
+/* Calculate melting point of short DNA sequence given DNA concentration in 
  * nanomoles, and salt concentration in millimoles.  This is calculated using eqn
  * (ii) in Rychlik, Spencer, Roads, Nucleic Acids Research, vol 18, no 21, page
  * 6410, with tables of nearest-neighbor thermodynamics for DNA bases as
@@ -196,8 +197,7 @@ double oligoTm(char *dna, double DNA_nM, double K_mM)
 
     touppers(s);
     /* Use a finite-state machine (DFA) to calucluate dh and ds for s. */
-    c = *s;
-    s++;
+    c = *s; s++;
     if (c == 'A') goto A_STATE;
     else if (c == 'G') goto G_STATE;
     else if (c == 'T') goto T_STATE;
@@ -210,8 +210,8 @@ double oligoTm(char *dna, double DNA_nM, double K_mM)
     STATE(C);
     STATE(N);
 
-DONE:  /* dh and ds are now computed for the given sequence. */
-    delta_H = dh * -100.0;  /*
+    DONE:  /* dh and ds are now computed for the given sequence. */
+    delta_H = dh * -100.0;  /* 
 			     * Nearest-neighbor thermodynamic values for dh
 			     * are given in 100 cal/mol of interaction.
 			     */
@@ -220,15 +220,15 @@ DONE:  /* dh and ds are now computed for the given sequence. */
 			      * are in in .1 cal/K per mol of interaction.
 			      */
 
-    /*
+    /* 
      * See Rychlik, Spencer, Roads, Nucleic Acids Research, vol 18, no 21,
      * page 6410, eqn (ii).
      */
     freeMem(dupe);
     return delta_H / (delta_S + 1.987 * log(DNA_nM/4000000000.0))
-           - 273.15 + 16.6 * log10(K_mM/1000.0);
+	- 273.15 + 16.6 * log10(K_mM/1000.0);
 
-ERROR:  /*
+    ERROR:  /* 
 	  * length of s was less than 2 or there was an illegal character in
 	  * s.
 	  */
@@ -246,7 +246,7 @@ ERROR:  /*
 
 double oligoDg(char *dna)
 /* Calculate dg (change in Gibb's free energy) from melting oligo
- * the nearest neighbor model. Seq should be relatively short, given
+ * the nearest neighbor model. Seq should be relatively short, given 
  * the characteristics of the nearest neighbor model (36 bases or less
  * is best). */
 {
@@ -256,8 +256,7 @@ double oligoDg(char *dna)
     char *s = dupe;
 
     /* Use a finite-state machine (DFA) to calculate dg s. */
-    c = *s;
-    s++;
+    c = *s; s++;
     if (c == 'A') goto A_STATE;
     else if (c == 'G') goto G_STATE;
     else if (c == 'T') goto T_STATE;
@@ -270,11 +269,11 @@ double oligoDg(char *dna)
     STATE(C);
     STATE(N);
 
-DONE:  /* dg is now computed for the given sequence. */
+    DONE:  /* dg is now computed for the given sequence. */
     freeMem(dupe);
     return dg / 1000.0;
 
-ERROR:
+    ERROR:
     freeMem(dupe);
     errAbort("Not a valid oligo in oligoDg.");
     return 0;
@@ -304,23 +303,23 @@ double longSeqTm(char *s, int start, int len, double salt_conc)
  * This function takes salt_conc to be the millimolar (mM) concentration,
  * since mM is the usual units in PCR applications.  */
 {
-    int GC_count = 0;
-    char *p, *end;
+  int GC_count = 0;
+  char *p, *end;
 
-    if(start + len > strlen(s) || start < 0 || len <= 0)
-        errAbort("bad input to longSeqTm");
-    end = &s[start + len];
-    /* Length <= 0 is nonsensical. */
-    for (p = &s[start]; p < end; p++) {
-        if ('G' == *p || 'g' == *p || 'C' == *p || 'c' == *p)
-            GC_count++;
-    }
+  if(start + len > strlen(s) || start < 0 || len <= 0) 
+	errAbort("bad input to longSeqTm");
+  end = &s[start + len];
+  /* Length <= 0 is nonsensical. */
+  for (p = &s[start]; p < end; p++) {
+    if ('G' == *p || 'g' == *p || 'C' == *p || 'c' == *p)
+      GC_count++;
+  }
 
-    return
-        81.5
-        + (16.6 * log10(salt_conc / 1000.0))
-        + (41.0 * (((double) GC_count) / len))
-        - (600.0 / len);
+  return
+    81.5
+    + (16.6 * log10(salt_conc / 1000.0))
+    + (41.0 * (((double) GC_count) / len))
+    - (600.0 / len);
 
 }
 
@@ -328,7 +327,7 @@ double seqTm(char *seq, double dna_conc, double salt_conc)
 /* Figure out melting temperature of sequence of any length given
  * dna and salt concentration. */
 {
-    int len = strlen(seq);
-    return (len > 36)
-           ? longSeqTm(seq, 0, len, salt_conc) : oligoTm(seq, dna_conc, salt_conc);
+  int len = strlen(seq);
+  return (len > 36)
+    ? longSeqTm(seq, 0, len, salt_conc) : oligoTm(seq, dna_conc, salt_conc);
 }

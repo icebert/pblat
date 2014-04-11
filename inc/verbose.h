@@ -8,13 +8,25 @@ void verbose(int verbosity, char *format, ...)
 /* Write printf formatted message to log (which by
  * default is stderr) if global verbose variable
  * is set to verbosity or higher. */
-#if defined(__GNUC__) && defined(JK_WARN)
+#if defined(__GNUC__)
 __attribute__((format(printf, 2, 3)))
 #endif
-;
+    ;
 
 void verboseVa(int verbosity, char *format, va_list args);
 /* Log with at given verbosity vprintf formatted args. */
+
+void verboseTimeInit(void);
+/* Initialize or reinitialize the previous time for use by verboseTime. */
+
+void verboseTime(int verbosity, char *label, ...)
+/* Print label and how long it's been since last call.  Start time can be
+ * initialized with verboseTimeInit, otherwise the elapsed time will be
+ * zero. */
+#if defined(__GNUC__)
+__attribute__((format(printf, 2, 3)))
+#endif
+    ;
 
 void verboseDot();
 /* Write I'm alive dot (at verbosity level 1) */

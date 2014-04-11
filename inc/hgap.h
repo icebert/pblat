@@ -9,7 +9,7 @@
 
 #ifndef DNASEQ_H
 #include "dnaseq.h"
-#endif
+#endif 
 
 #ifndef UNFIN_H
 #include "unfin.h"
@@ -56,31 +56,31 @@ FILE *hgCreateTabFile(char *tableName);
  * tableName.tab in the current directory.) */
 
 void hgLoadTabFile(struct sqlConnection *conn, char *tableName);
-/* Load tab delimited file corresponding to tableName.
+/* Load tab delimited file corresponding to tableName. 
  * Should only be used after hgCreatTabFile, and only after
  * file closed. */
 
 
-enum
+enum 
 /* Various constants used. */
-{
+    {
     hgContigPad = 800,	  /* Number of N's between contigs. */
-};
+    };
 
 struct hgBac
 /* This represents a sequenced clone (BAC/PAC/cosmid) */
-{
+    {
     struct hgBac *next;	      /* Next in list. */
     struct hgNest *nest;      /* Coordinate space. */
     HGID id;		      /* HGAP ID. */
     char name[16];            /* GenBank accession. */
     int contigCount;          /* Number of contigs. */
     struct hgContig *contigs; /* Contig list. */
-};
+    };
 
 struct hgContig
 /* This represents a contig within a BAC. */
-{
+    {
     struct hgContig *next;    /* Next in list. */
     struct hgNest *nest;      /* Coordinate space. */
     HGID id;		      /* HGAP ID. */
@@ -89,13 +89,13 @@ struct hgContig
     int ix;                   /* Contig index. */
     int submitOffset;         /* Position in genBank submission. */
     int size;                 /* Size in bases. */
-};
+    };
 
 struct hgNest
 /* This structure describes the contig tree
  * chromosomes->chromosome contigs->bacs->
  * bac contigs.  */
-{
+    {
     struct hgNest *next;	/* Pointer to next sibling. */
     struct hgNest *children;	/* Children. */
     struct hgNest *parent;      /* Parent if any. */
@@ -104,7 +104,7 @@ struct hgNest
     int offset;			/* Offset relative to parent. */
     int size;                   /* Size in bases. */
     struct hgContig *contig;    /* Associated contig if any. */
-};
+    };
 
 struct hgBac *hgGetBac(char *acc);
 /* Load BAC with given accession into memory. Don't free this, it's
@@ -142,47 +142,47 @@ int hgOffset(struct hgNest *source, int offset, struct hgNest *dest);
  * describing a range of DNA. The later structures include
  * the first fields of the earlier ones.  Routines that
  * work on the earlier structures will also work on
- * the later.  This is a crude but effective form of single
+ * the later.  This is a crude but effective form of single 
  * inheritance. */
 
 struct hgRange
 /* Just start/end locations somewhere... */
-{
+    {
     struct hgRange *next; /* Next in list. */
     int tStart, tEnd;	  /* Position in target or only sequence tStart <= x < tEnd */
-};
+    };
 
 int hgCmpTStart(const void *va, const void *vb);
 /* Compare function to sort by tStart, then by tEnd. */
 
 struct hgHit
 /* A simple hit - an interesting range of a sequence. */
-{
+    {
     struct hgHit *next;   /* Next in list. */
     int tStart, tEnd;	  /* Position in target or only sequence tStart <= x < tEnd */
     int tOrientation;	  /* +1 or -1 orientation. */
     char *target;	  /* Name of target seq. (Not allocated here.) */
-};
+    };
 
 int hgCmpTarget(const void *va, const void *vb);
 /* Compare function to sort by target, orientaation, tStart, then tEnd. */
 
 struct hgScoredHit
 /* A hit with a log odds score. */
-{
+    {
     struct hgScoredHit *next;
     int tStart, tEnd;	  /* Position in target or only sequence tStart <= x < tEnd */
     int tOrientation;	  /* +1 or -1 orientation. */
     char *target;	  /* Name of target seq. (Not allocated here.) */
     int logOdds;          /* Log odds style score - scaled x 1000. */
-};
+    };
 
 int hgCmpScore(const void *va, const void *vb);
 /* Compare function to sort logOdds score. */
 
 struct hgAliHit
 /* A hit representing an alignment between two sequences without inserts. */
-{
+    {
     struct hgAliHit *next;
     int tStart, tEnd;	  /* Position in target or only sequence tStart <= x < tEnd */
     int tOrientation;	  /* +1 or -1 orientation. */
@@ -191,7 +191,7 @@ struct hgAliHit
     int qStart, qEnd;     /* Position in query sequence. */
     int qOrientation;	  /* +1 or -1 query orientation. */
     char *query;	  /* Name of query seq. (Not allocated here.) */
-};
+    };
 
 int hgCmpQStart(const void *va, const void *vb);
 /* Compare function to sort by qStart, then by qEnd. */
@@ -201,7 +201,7 @@ int hgCmpQuery(const void *va, const void *vb);
 
 struct hgBoundedHit
 /* An alignment hit that can have soft or hard edges. */
-{
+    {
     struct hgBoundedHit *next;
     int tStart, tEnd;	  /* Position in target or only sequence tStart <= x < tEnd */
     int tOrientation;	  /* +1 or -1 orientation. */
@@ -212,11 +212,11 @@ struct hgBoundedHit
     char *query;	  /* Name of query seq. (Not allocated here.) */
     bool hardStart;       /* Start position known */
     bool hardEnd;         /* End position known */
-};
+    };
 
 struct hgAlignment
 /* An alignment with gaps. */
-{
+    {
     struct hgAlignment *next;
     int tStart, tEnd;	  /* Position in target or only sequence tStart <= x < tEnd */
     int tOrientation;	  /* +1 or -1 orientation. */
@@ -227,7 +227,7 @@ struct hgAlignment
     bool hardStart;       /* Start position known */
     bool hardEnd;         /* End position known */
     struct hgBoundedHit *hitList;  /*  Subalignments. */
-};
+    };
 
 #endif /* HGAP_H */
 

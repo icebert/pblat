@@ -7,7 +7,6 @@
 #include "common.h"
 #include "md5.h"
 
-static char const rcsid[] = "$Id: md5.c,v 1.4 2003/05/06 07:33:43 kate Exp $";
 
 #define GET_UINT32(n,b,i)					\
 {								\
@@ -108,7 +107,7 @@ void md5_process( struct md5_context *ctx, uint8 data[64] )
     P( B, C, D, A, 12, 20, 0x8D2A4C8A );
 
 #undef F
-
+    
 #define F(x,y,z) (x ^ y ^ z)
 
     P( A, B, C, D,  5,  4, 0xFFFA3942 );
@@ -170,18 +169,18 @@ void md5_update( struct md5_context *ctx, uint8 *input, uint32 length )
 
     if( left && length >= fill )
     {
-        memcpy( (void *) (ctx->buffer + left), (void *) input, fill );
-        md5_process( ctx, ctx->buffer );
-        length -= fill;
-        input  += fill;
-        left = 0;
+	memcpy( (void *) (ctx->buffer + left), (void *) input, fill );
+	md5_process( ctx, ctx->buffer );
+	length -= fill;
+	input  += fill;
+	left = 0;
     }
 
     while( length >= 64 )
     {
         md5_process( ctx, input );
-        length -= 64;
-        input  += 64;
+	length -= 64;
+	input  += 64;
     }
 
     if( length )
@@ -192,7 +191,7 @@ void md5_update( struct md5_context *ctx, uint8 *input, uint32 length )
 
 static uint8 md5_padding[64] =
 {
-    0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -235,7 +234,7 @@ static char *msg[] =
     "abcdefghijklmnopqrstuvwxyz",
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
     "12345678901234567890123456789012345678901234567890123456789012" \
-    "345678901234567890"
+	"345678901234567890"
 };
 
 static char *val[] =
@@ -258,26 +257,26 @@ int main( void )
 
     for( i = 0; i < 7; i++ )
     {
-        md5_starts( &ctx );
-        md5_update( &ctx, (uint8 *) msg[i], strlen( msg[i] ) );
-        md5_finish( &ctx, md5sum );
+	md5_starts( &ctx );
+	md5_update( &ctx, (uint8 *) msg[i], strlen( msg[i] ) );
+	md5_finish( &ctx, md5sum );
 
-        for( j = 0; j < 16; j++ )
-        {
-            sprintf( output + j * 2, "%02x", md5sum[j] );
-        }
+	for( j = 0; j < 16; j++ )
+	{
+	    sprintf( output + j * 2, "%02x", md5sum[j] );
+	}
 
-        printf( "test %d ", i + 1 );
+	printf( "test %d ", i + 1 );
 
-        if( ! memcmp( output, val[i], 32 ) )
-        {
-            printf( "passed\n" );
-        }
-        else
-        {
-            printf( "failed\n" );
-            return( 1 );
-        }
+	if( ! memcmp( output, val[i], 32 ) )
+	{
+	    printf( "passed\n" );
+	}
+	else
+	{
+	    printf( "failed\n" );
+	    return( 1 );
+	}
     }
 
     return( 0 );

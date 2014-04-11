@@ -1,5 +1,5 @@
-/* LocalMem.h - local memory routines.
- *
+/* LocalMem.h - local memory routines. 
+ * 
  * These routines are meant for the sort of scenario where
  * a lot of little to medium size pieces of memory are
  * allocated, and then disposed of all at once.
@@ -21,6 +21,16 @@ void *lmAlloc(struct lm *lm, size_t size);
 
 char *lmCloneString(struct lm *lm, char *string);
 /* Return local mem copy of string. */
+
+char*lmCloneStringZ(struct lm *lm, char *string, int size);
+/* Return local mem copy of string of given size, adding null terminator. */
+
+char *lmCloneFirstWord(struct lm *lm, char *line);
+/* Clone first word in line */
+
+char *lmCloneSomeWord(struct lm *lm, char *line, int wordIx);
+/* Return a clone of the given space-delimited word within line.  Returns NULL if
+ * not that many words in line. */
 
 struct slName *lmSlName(struct lm *lm, char *name);
 /* Return slName in memory. */

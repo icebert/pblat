@@ -3,7 +3,7 @@
  * for personal, academic, and non-profit purposes.  Commercial use          *
  * permitted only by explicit agreement with Jim Kent (jim_kent@pacbell.net) *
  *****************************************************************************/
-/* patSpace - a homology finding algorithm that occurs mostly in
+/* patSpace - a homology finding algorithm that occurs mostly in 
  * pattern space (as opposed to offset space). */
 
 #ifndef PATSPACE_H
@@ -19,9 +19,9 @@ struct patSpace *makePatSpace(
     int seedSize,	            /* Alignment seed size - 10 or 11. Must match oocFileName */
     char *oocFileName,              /* File with tiles to filter out, may be NULL. */
     int minMatch,                   /* Minimum # of matching tiles.  4 is good. */
-    int maxGap                      /* Maximum gap size - 32k is good for
+    int maxGap                      /* Maximum gap size - 32k is good for 
                                        cDNA (introns), 500 is good for DNA assembly. */
-);
+    );
 /* Allocate a pattern space and fill from sequences.  (Each element of
    seqArray is a list of sequences. */
 
@@ -30,14 +30,14 @@ void freePatSpace(struct patSpace **pPatSpace);
 
 struct patClump
 /* This holds pattern space output - a list of homologous clumps. */
-{
+    {
     struct patClump *next;     /* Link to next in list. */
     int bacIx;                 /* Index of .fa file where hit occurs. */
     int seqIx;                 /* Index of contig where hit occurs. */
     struct dnaSeq *seq;        /* Sequence in which hit occurs. */
     int start;                 /* Start offset within sequence. */
     int size;                  /* Size of block within sequence. */
-};
+    };
 
 struct patClump *patSpaceFindOne(struct patSpace *ps, DNA *dna, int dnaSize);
 /* Find occurrences of DNA in patSpace. The resulting list can be

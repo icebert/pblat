@@ -6,22 +6,22 @@
 
 struct boxIn
 /* Input to box clumper. */
-{
+    {
     struct boxIn *next;		 /* Next in list. */
     void *data;			 /* Some user-associated data. */
     int qStart, qEnd;		 /* Range covered in query. */
     int tStart, tEnd;		 /* Range covered in target. */
-};
+    };
 
 struct boxClump
 /* Output of box clumper. */
-{
+    {
     struct boxClump *next;	 /* Next in list. */
     struct boxIn *boxList;	 /* List of boxes in this clump. */
     int boxCount;		 /* Count of boxes in this clump. */
     int qStart, qEnd;		 /* Expanse of clump in query. */
     int tStart, tEnd;		 /* Expanse of clump in target. */
-};
+    };
 
 void boxClumpFree(struct boxClump **pClump);
 /* Free boxClump. */

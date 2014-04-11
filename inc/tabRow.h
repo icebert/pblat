@@ -1,5 +1,5 @@
 /* tabRow - a row from a database or a tab-separated file held in
- * memory.   Just a light wrapper around an array of strings.
+ * memory.   Just a light wrapper around an array of strings. 
  * Also some routines to convert slLines to tabRows. */
 
 #ifndef TABROW_H
@@ -7,11 +7,11 @@
 
 struct tabRow
 /* A parsed out tableRow. */
-{
+    {
     struct tabRow *next;
     int colCount;
     char *columns[1];
-};
+    };
 
 struct tabRow *tabRowNew(int colCount);
 /* Return new row. */
@@ -20,17 +20,17 @@ int tabRowMaxColCount(struct tabRow *rowList);
 /* Return largest column count */
 
 struct tabRow *tabRowByWhite(struct slName *lineList, char *fileName,
-                             boolean varCol);
+	boolean varCol);
 /* Convert lines to rows based on spaces.  If varCol is TRUE then not
  * all rows need to have same number of columns. */
 
 struct tabRow *tabRowByChar(struct slName *lineList, char c, char *fileName,
-                            boolean varCol);
+	boolean varCol);
 /* Convert lines to rows based on character separation.  If varCol is TRUE then not
  * all rows need to have same number of columns. */
 
 struct tabRow *tabRowByFixedOffsets(struct slName *lineList, struct slInt *offList,
-                                    char *fileName);
+	char *fileName);
 /* Return rows parsed into fixed width fields whose starts are defined by
  * offList. */
 
