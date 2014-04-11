@@ -10,7 +10,7 @@
 
 #ifndef LINEFILE_H
 #include "linefile.h"
-#endif
+#endif 
 
 #ifndef DNASEQ_H
 #include "dnaseq.h"
@@ -18,46 +18,46 @@
 
 struct aceAS
 /* This contains an AS entry. */
-{
+    {
     int contigs;
     int reads;
-};
+    };
 
 struct aceCO
 /* This contains a CO entry. */
-{
+    {
     char *contigName;
     int bases;
     int reads;
     struct dnaSeq *seq;
-};
+    };
 
 struct aceAF
 /* This contains an AF entry. */
-{
+    {
     struct aceAF *next;
     char *readName;
     int startPos;
-};
+    };
 
 struct aceRD
 /* This contains an RD entry. */
-{
+    {
     struct aceRD *next;
     char *readName;
     int bases;
     struct dnaSeq *seq;
-};
+    };
 
 struct ace
 /* This contains information about one ace element. */
-{
+    {
     struct ace *next;
     struct aceAS aceAS;
     struct aceCO aceCO;
     struct aceAF *afList;
     struct aceRD *rdList;
-};
+    };
 
 void aceFree(struct ace **pEl);
 /* Free an ace. */

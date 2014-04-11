@@ -17,7 +17,7 @@ int sqlByteArray(char *s, signed char *array, int arraySize);
 int sqlUbyteArray(char *s, unsigned char *array, int arraySize);
 int sqlCharArray(char *s, char *array, int arraySize);
 int sqlLongLongArray(char *s, long long *array, int arraySize);
-/* Convert comma separated list of numbers to an array.  Pass in
+/* Convert comma separated list of numbers to an array.  Pass in 
  * array and max size of array.  Returns actual array size.*/
 
 void sqlDoubleStaticArray(char *s, double **retArray, int *retSize);
@@ -49,7 +49,7 @@ void sqlLongLongDynamicArray(char *s, long long **retArray, int *retSize);
 
 
 int sqlStringArray(char *s, char **array, int maxArraySize);
-/* Convert comma separated list of strings to an array.  Pass in
+/* Convert comma separated list of strings to an array.  Pass in 
  * array and max size of array.  Returns actual size.  This will
  * only persist as long as s persists.... Use sqlStringDynamicArray
  * if calling repeatedly. */

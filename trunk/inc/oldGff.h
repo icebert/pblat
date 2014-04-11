@@ -3,7 +3,7 @@
  * for personal, academic, and non-profit purposes.  Commercial use          *
  * permitted only by explicit agreement with Jim Kent (jim_kent@pacbell.net) *
  *****************************************************************************/
-/* oldGff.h - This reads a *special* type of .GFF file.
+/* oldGff.h - This reads a *special* type of .GFF file.  
  * Some of the routines herein expect the gff file to include
  * both DNA and gene/intron/exon info.  They expect the
  * genes to be named by the group field. */
@@ -13,7 +13,7 @@
 struct gff
 /* This is the structure that holds info on a gff file.
  */
-{
+    {
     char fileName[256];
     FILE *file;
     long fileSize;
@@ -27,22 +27,22 @@ struct gff
     long dnaSize;
     char dnaName[128];
     struct gffGene *genes;
-};
+    };
 
 /* An intron or exon - just an offset into a DNA array. */
 struct gffSegment
-{
+    {
     struct gffSegment *next;	/* This must be first field! */
     long start, end;
     int frame;
-};
+    };
 typedef struct gffSegment GffIntron;
 typedef struct gffSegment GffExon;
 
 struct gffGene
-/* At the end of a GFF file are a number of genes, each of which
+/* At the end of a GFF file are a number of genes, each of which 
  * is a list of exons/introns. */
-{
+    {
     struct gffGene *next;	/* This must be first field! */
     long start, end;
     int frame;
@@ -52,7 +52,7 @@ struct gffGene
     GffIntron *introns;
     DNA *dna;
     long dnaSize;
-};
+    };
 
 
 boolean gffOpen(struct gff *gff, char *fileName);
@@ -83,15 +83,15 @@ struct gffGene *gffDupeGene(struct gff *gff, struct gffGene *oldGene);
 /* Make a duplicate of gene (with it's own DNA). gffFreeGene it when done. */
 
 struct gffGene *gffDupeGeneAndSurrounds(struct gff *gff, struct gffGene *oldGene,
-                                        int leftExtra, int rightExtra);
-/* Make a duplicate of gene with extra DNA around coding region.
+    int leftExtra, int rightExtra);
+/* Make a duplicate of gene with extra DNA around coding region. 
  * gffFreeGene it when done. */
 
 struct gffGene *gffGeneWithOwnDna(struct gff *gff, char *geneName);
 /* Find gene with given name.  Case sensitive. */
 
 void gffFreeGene(struct gffGene **pGene);
-/* Free a gene returned with dupeGene or geneWithOwnDna.
+/* Free a gene returned with dupeGene or geneWithOwnDna. 
  * (You don't want to free the ones returned by findGene,
  * they are still owned by the gff.)
  */

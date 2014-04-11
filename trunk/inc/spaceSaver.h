@@ -12,7 +12,7 @@
 struct spaceSaver
 /* Help layout 1-D objects onto multiple tracks so that
  * no two objects overlap on a single track. */
-{
+    {
     struct spaceSaver *next;	/* Next in list. */
     struct spaceNode *nodeList; /* List of things put in space saver. */
     struct spaceRowTracker *rowList; /* List of rows. */
@@ -22,22 +22,22 @@ struct spaceSaver
     double scale;             /* What to scale by to get to cell coordinates. */
     int maxRows;	      /* Maximum number of rows.  */
     boolean isFull;	      /* Set to true if can't fit data into maxRows. */
-};
+    };
 
 struct spaceNode
 /* Which row is this one on? */
-{
+    {
     struct spaceNode *next;	/* Next in list. */
     int row;			/* Which row, starting at zero. */
     void *val;
-};
+    };
 
-struct spaceRowTracker
+struct spaceRowTracker 
 /* Keeps track of how much of row is used. */
-{
+    {
     struct spaceRowTracker *next;	/* Next in list. */
     bool *used;                 /* A flag for each spot used. */
-};
+    };
 
 struct spaceSaver *spaceSaverMaxCellsNew(int winStart, int winEnd, int maxRows, int maxCells);
 /* Create a new space saver around the given window.   */
@@ -52,8 +52,8 @@ struct spaceNode *spaceSaverAdd(struct spaceSaver *ss, int start, int end, void 
 /* Add a new node to space saver. */
 
 
-struct spaceNode *spaceSaverAddOverflow(struct spaceSaver *ss, int start, int end,
-                                        void *val, boolean allowOverflow);
+struct spaceNode *spaceSaverAddOverflow(struct spaceSaver *ss, int start, int end, 
+					void *val, boolean allowOverflow);
 /* Add a new node to space saver. Returns NULL if can't fit item in
  * and allowOverflow == FALSE. If allowOverflow == TRUE then put items
  * that won't fit in first row (ends up being last row after

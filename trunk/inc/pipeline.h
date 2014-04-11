@@ -19,21 +19,21 @@
  * Specify otherEndFile as "/dev/null" for no input or no output (or to
  * discard output).  If otherEndFile is NULL, then either stdin or stdout are
  * inherited from the current process.
- *
+ * 
  * I/O to the pipeline is done by using the result of pipelineFd(),
  * pipelineFile(), or pipelineLineFile().
  *
- * An example that reads a compressed file, sorting it numerically by the
+ * An example that reads a compressed file, sorting it numerically by the 
  * first column:
- *
+ *    
  *    static char *cmd1[] = {"gzip", "-dc", NULL};
  *    static char *cmd2[] = {"sort", "-k", "1,1n", NULL};
  *    static char **cmds[] = {cmd1, cmd2, NULL};
- *
- *    struct pipeline *pl = pipelineOpen(cmds, pipelineRead, inFilePath);
+ *    
+ *    struct pipeline *pl = pipelineOpen(cmds, pipelineRead, inFilePath, stderrFd);
  *    struct lineFile *lf = pipelineLineFile(pl);
  *    char *line;
- *
+ *    
  *    while (lineFileNext(lf, &line, NULL))
  *        {
  *        ...
@@ -43,21 +43,24 @@
  *
  * A similar example that generates data and writes a compressed file, sorting
  * it numerically by the first column:
- *
- *
+ *    
+ *    
  *    static char *cmd1[] = {"sort", "-k", "1,1n", NULL};
  *    static char *cmd2[] = {"gzip", "-c3", NULL};
  *    static char **cmds[] = {cmd1, cmd2, NULL};
- *
- *    struct pipeline *pl = pipelineOpen(cmds, pipelineWrite, outFilePath);
+ *    
+ *    struct pipeline *pl = pipelineOpen(cmds, pipelineWrite, outFilePath, stderrFd);
  *    char *line;
- *
+ *    
  *    while ((line = makeNextRow()) != NULL)
  *        fprintf(fh, "%s\n", line);
- *
+ *    
  *    pipelineWait(pl);
  *    pipelineFree(&pl);
  *
+ * To append to an output file, use pipelineWrite|pipelineAppend:
+ *    
+ *    struct pipeline *pl = pipelineOpen(cmds, pipelineWrite|pipelineAppend, outFilePath, stderrFd);
  */
 #ifndef PIPELINE_H
 #define PIPELINE_H
@@ -67,15 +70,16 @@ struct pipeline;
 
 enum pipelineOpts
 /* pipeline options bitset */
-{
+    {
     pipelineRead       = 0x01, /* read from pipeline */
     pipelineWrite      = 0x02, /* write to pipeline */
     pipelineNoAbort    = 0x04, /* don't abort if a process exits non-zero,
                                 * wait will return exit code instead.
                                 * Still aborts if process signals. */
+    pipelineAppend     = 0x10, /* Append to output file (used only with pipelineWrite) */
     /* these are internal options */
     pipelineMemInput   = 0x08  /* pipeline takes input from memory */
-};
+    };
 
 struct pipeline *pipelineOpenFd(char ***cmds, unsigned opts,
                                 int otherEndFd, int stderrFd);

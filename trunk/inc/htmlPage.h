@@ -1,4 +1,4 @@
-/* htmlPage - stuff to read, parse, and submit  htmlPages and forms.
+/* htmlPage - stuff to read, parse, and submit  htmlPages and forms. 
  *
  * typical usage is:
  *   struct htmlPage *page = htmlPageGet(url);
@@ -19,16 +19,16 @@
 
 struct htmlStatus
 /* HTTP version and status code. */
-{
+    {
     struct htmlStatus *next;	/* Next in list. */
     char *version;		/* Usually something like HTTP/1.1 */
     int status;			/* HTTP status code.  200 is good. */
-};
+    };
 
 struct htmlCookie
 /* A cookie - stored by browser usually.  We need to echo it
  * back when we post forms. */
-{
+    {
     struct htmlCookie *next;	/* Next in list. */
     char *name;			/* Cookie name. */
     char *value;		/* Cookie value. */
@@ -36,29 +36,29 @@ struct htmlCookie
     char *path;			/* Cookie applies below this path I guess. */
     char *expires;		/* Expiration date. */
     boolean secure;		/* Is it a secure cookie? */
-};
+    };
 
 struct htmlAttribute
 /* An html attribute - part of a set of name/values pairs in a tag. */
-{
+    {
     struct htmlAttribute *next;
     char *name;		/* Attribute name. */
     char *val;		/* Attribute value. */
-};
+    };
 
 struct htmlTag
 /* A html tag - includes attribute list and parent, but no text. */
-{
+    {
     struct htmlTag *next;
     char *name;	/* Tag name. */
     struct htmlAttribute *attributes;  /* Attribute list. */
     char *start;  /* Start of this tag.  Not allocated here.*/
     char *end;	  /* End of tag (one past closing '>')  Not allocated here.*/
-};
+    };
 
 struct htmlFormVar
 /* A variable within an html form - from input, button, etc. */
-{
+    {
     struct htmlFormVar *next;	/* Next in list. */
     char *name;			/* Variable name.  Not allocated here.*/
     char *tagName;		/* Name of tag.  Not allocated here. */
@@ -66,11 +66,11 @@ struct htmlFormVar
     char *curVal;		/* Current value if any.  Allocated here. */
     struct slName *values;	/* List of available values.  Null if textBox. */
     struct slRef *tags;	        /* List of references associated tags. */
-};
+    };
 
 struct htmlForm
 /* A form within an html page. */
-{
+    {
     struct htmlForm *next;	/* Next form in list. */
     char *name;			/* Name (n/a if not defined).  Not allocated here. */
     char *action;		/* Action attribute value.  Not allocated here. */
@@ -78,11 +78,11 @@ struct htmlForm
     struct htmlTag *startTag;	/* Tag that holds <FORM>. Not allocated here.  */
     struct htmlTag *endTag;	/* Tag one past </FORM> . Not allocated here. */
     struct htmlFormVar *vars; /* List of form variables. */
-};
+    };
 
 struct htmlPage
 /* A complete html page parsed out. */
-{
+    {
     struct htmlPage *next;
     char *url;				/* Url that produced this page. */
     struct htmlStatus *status;		/* Version and status. */
@@ -92,7 +92,7 @@ struct htmlPage
     char *htmlText;			/* Text unparsed after header.  Same mem as fullText. */
     struct htmlTag *tags;		/* List of tags in this page. */
     struct htmlForm *forms;		/* List of all forms. */
-};
+    };
 
 void htmlStatusFree(struct htmlStatus **pStatus);
 /* Free up resources associated with status */
@@ -101,7 +101,7 @@ void htmlStatusFreeList(struct htmlStatus **pList);
 /* Free a list of dynamically allocated htmlStatus's */
 
 struct htmlStatus *htmlStatusParse(char **pText);
-/* Read in status from first line.  Update pText to point to next line.
+/* Read in status from first line.  Update pText to point to next line. 
  * Note unlike many routines here, this does not insert zeros into text. */
 
 void htmlCookieFree(struct htmlCookie **pCookie);
@@ -120,8 +120,8 @@ void htmlAttributeFree(struct htmlAttribute **pAttribute);
 void htmlAttributeFreeList(struct htmlAttribute **pList);
 /* Free a list of dynamically allocated htmlAttribute's */
 
-char *htmlTagAttributeVal(struct htmlPage *page, struct htmlTag *tag,
-                          char *name, char *defaultVal);
+char *htmlTagAttributeVal(struct htmlPage *page, struct htmlTag *tag, 
+	char *name, char *defaultVal);
 /* Return value of named attribute, or defaultVal if attribute doesn't exist. */
 
 char *htmlTagAttributeNeeded(struct htmlPage *page, struct htmlTag *tag, char *name);
@@ -152,8 +152,8 @@ void htmlFormFreeList(struct htmlForm **pList);
 void htmlFormPrint(struct htmlForm *form, FILE *f);
 /* Print out form structure. */
 
-char *htmlFormCgiVars(struct htmlPage *page, struct htmlForm *form,
-                      char *buttonName, char *buttonVal, struct dyString *dyHeader);
+char *htmlFormCgiVars(struct htmlPage *page, struct htmlForm *form, 
+	char *buttonName, char *buttonVal, struct dyString *dyHeader);
 /* Return cgi vars in name=val format from use having pressed
  * submit button of given name and value. */
 
@@ -179,7 +179,7 @@ void htmlPageFreeList(struct htmlPage **pList);
 /* Free a list of dynamically allocated htmlPage's */
 
 char *htmlExpandUrl(char *base, char *url);
-/* Expand URL that is relative to base to stand on it's own.
+/* Expand URL that is relative to base to stand on it's own. 
  * Return NULL if it's not http or https. */
 
 char *htmlNextCrLfLine(char **pS);
@@ -187,8 +187,8 @@ char *htmlNextCrLfLine(char **pS);
  * next line.  Return NULL at end of file.  Warn if there is
  * no <CR>. */
 
-struct slName *htmlPageScanAttribute(struct htmlPage *page,
-                                     char *tagName, char *attribute);
+struct slName *htmlPageScanAttribute(struct htmlPage *page, 
+	char *tagName, char *attribute);
 /* Scan page for values of particular attribute in particular tag.
  * if tag is NULL then scans in all tags. */
 
@@ -216,8 +216,8 @@ struct htmlPage *htmlPageParseOk(char *url, char *fullText);
 struct htmlPage *htmlPageParseNoHead(char *url, char *htmlText);
 /* Parse out page in memory (past http header if any) and return. */
 
-struct htmlPage *htmlPageFromForm(struct htmlPage *origPage, struct htmlForm *form,
-                                  char *buttonName, char *buttonVal);
+struct htmlPage *htmlPageFromForm(struct htmlPage *origPage, struct htmlForm *form, 
+	char *buttonName, char *buttonVal);
 /* Return a new htmlPage based on response to pressing indicated button
  * on indicated form in origPage. */
 

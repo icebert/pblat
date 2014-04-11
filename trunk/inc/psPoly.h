@@ -5,19 +5,19 @@
 
 struct psPoint
 /* A two-dimensional point, typically in pixel coordinates. */
-{
+    {
     struct psPoint *next;
     double x, y;		/* Position */
-};
+    };
 
 struct psPoly
 /* A two-dimensional polygon */
-{
+    {
     struct psPoly *next;
     int ptCount;		/* Number of points. */
     struct psPoint *ptList;	/* First point in list, which is circular. */
     struct psPoint *lastPoint;	/* Last point in list. */
-};
+    };
 
 struct psPoly *psPolyNew();
 /* Create new (empty) polygon */

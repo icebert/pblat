@@ -13,20 +13,20 @@
 
 #ifndef DNASEQ_H
 #include "dnaseq.h"
-#endif
+#endif 
 
 #ifndef NT4_H
 #include "nt4.h"
-#endif
+#endif 
 
 #ifndef GDF_H
 #include "gdf.h"
 #endif
 
 
-struct wormCdnaInfo
+struct wormCdnaInfo 
 /* Extra info stored in cDNA database other than string. */
-{
+    {
     char *motherString;         /* Holds memory for other strings. */
     char *name;                 /* Name of cDNA. */
     char *gene;                 /* Something like unc-1 */
@@ -39,7 +39,7 @@ struct wormCdnaInfo
     boolean isMale;             /* True if males only. */
     boolean isHermaphrodite;    /* True if hermaphrodites only. */
     char *description;          /* One line description. */
-};
+    };
 
 boolean wormCdnaInfo(char *name, struct wormCdnaInfo *retInfo);
 /* Get info about cDNA sequence. */
@@ -69,9 +69,9 @@ void wormCdnaUncache();
 /* Stuff for searching entire database of worm cDNA */
 
 struct wormCdnaIterator
-{
+    {
     FILE *faFile;
-};
+    };
 
 boolean wormSearchAllCdna(struct wormCdnaIterator **retSi);
 /* Set up to search entire database or worm cDNA */
@@ -179,13 +179,13 @@ DNA *wormGetNamelessClusterDna(char *name);
 
 struct wormFeature
 /* This holds info on where something is in the genome. */
-{
+    {
     struct wormFeature *next;
     char *chrom;    /* One of names returned by */
     int start, end;
     char typeByte;
     char name[1];   /* Allocated to fit. */
-};
+    };
 
 struct wormFeature *newWormFeature(char *name, char *chrom, int start, int end, char typeByte);
 /* Allocate a new feature. */
@@ -206,16 +206,16 @@ struct cdaAli *wormCdaAlisInRange(char *chromId, int start, int end);
 /* Return list of cdna alignments that overlap range. */
 
 FILE *wormOpenGoodAli();
-/* Opens good alignment file and reads signature.
+/* Opens good alignment file and reads signature. 
  * (You can then cdaLoadOne() it.) */
 
 struct wormGdfCache
 /* Helps managed fast indexed access to gene predictions. */
-{
+    {
     char **pDir;
     struct snof *snof;
     FILE *file;
-};
+    };
 extern struct wormGdfCache wormSangerGdfCache;
 extern struct wormGdfCache wormGenieGdfCache;
 
@@ -231,8 +231,8 @@ struct gdfGene *wormGetGdfGeneList(char *baseName, int baseNameSize);
 struct gdfGene *wormGetSomeGdfGeneList(char *baseName, int baseNameSize, struct wormGdfCache *cache);
 /* Get all gdfGenes that start with a given name. */
 
-struct gdfGene *wormGdfGenesInRange(char *chrom, int start, int end,
-                                    struct wormGdfCache *geneFinder);
+struct gdfGene *wormGdfGenesInRange(char *chrom, int start, int end, 
+    struct wormGdfCache *geneFinder);
 /* Get list of genes in range according to given gene finder. */
 
 void wormUncacheGdf();

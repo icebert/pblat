@@ -4,14 +4,14 @@
  * permitted only by explicit agreement with Jim Kent (jim_kent@pacbell.net) *
  *****************************************************************************/
 struct gif_header
-{
-    char giftype[6];
-    unsigned char wlo,whi;
-    unsigned char hlo,hhi;
-    unsigned char colpix;	/* flags */
-    unsigned char bgcolor;
-    unsigned char reserved;
-};
+	{
+	char giftype[6];
+	unsigned char wlo,whi;
+	unsigned char hlo,hhi;
+	unsigned char colpix;	/* flags */
+	unsigned char bgcolor;
+	unsigned char reserved;
+	};
 
 #define COLTAB	0x80
 #define COLMASK 0x70
@@ -20,13 +20,13 @@ struct gif_header
 #define COLPIXVGA13 (COLTAB | (5<<COLSHIFT) | 7)
 
 struct gif_image
-{
-    unsigned char xlo,xhi;
-    unsigned char ylo,yhi;
-    unsigned char wlo,whi;
-    unsigned char hlo,hhi;
-    unsigned char flags;
-};
+	{
+	unsigned char xlo,xhi;
+	unsigned char ylo,yhi;
+	unsigned char wlo,whi;
+	unsigned char hlo,hhi;
+	unsigned char flags;
+	};
 #define ITLV_BIT 0x40
 
 /* Various error codes used by decoder

@@ -3,6 +3,8 @@
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
 
+/* Modified by Meng Wang. 2012-2014 */
+
 #ifndef FA_H
 #define FA_H
 
@@ -43,17 +45,17 @@ struct dnaSeq *faReadAllMixedInLf(struct lineFile *lf);
 
 struct dnaSeq *faReadOneDnaSeq(FILE *f, char *name, boolean mustStartWithSign);
 /* Read one sequence from FA file. Assumes positioned at or before
- * the '>' at start of sequence. */
+ * the '>' at start of sequence. */  
 
-boolean faReadNext(FILE *f, char *defaultName, boolean mustStartWithComment,
-                   char **retCommentLine, struct dnaSeq **retSeq);
+boolean faReadNext(FILE *f, char *defaultName, boolean mustStartWithComment, 
+    char **retCommentLine, struct dnaSeq **retSeq);
 /* Read next sequence from .fa file. Return sequence in retSeq.  If retCommentLine is non-null
- * return the '>' line in retCommentLine.   The whole thing returns FALSE at end of file.
+ * return the '>' line in retCommentLine.   The whole thing returns FALSE at end of file. 
  * Assumes positioned at or before the '>' at start of sequence.  File must have been
  * opened in binary mode! Note: sequence is mapped to lower case */
 
-boolean faReadMixedNext(FILE *f, boolean preserveCase, char *defaultName,
-                        boolean mustStartWithComment, char **retCommentLine, struct dnaSeq **retSeq);
+boolean faReadMixedNext(FILE *f, boolean preserveCase, char *defaultName, 
+    boolean mustStartWithComment, char **retCommentLine, struct dnaSeq **retSeq);
 /* Read next sequence from .fa file. Return sequence in retSeq.  If retCommentLine is non-null
  * return the '>' line in retCommentLine.   The whole thing returns FALSE at end of file. Provides flag for preserving case in sequence */
 
@@ -73,7 +75,7 @@ bioSeq *faNextSeqFromMemText(char **pText, boolean isDna);
  * record.  Returns NULL when no more sequences left. */
 
 bioSeq *faNextSeqFromMemTextRaw(char **pText);
-/* Same as faNextSeqFromMemText, but will leave in
+/* Same as faNextSeqFromMemText, but will leave in 
  * letters even if they aren't in DNA or protein alphabed. */
 
 bioSeq *faSeqListFromMemText(char *text, boolean isDna);
@@ -83,10 +85,14 @@ bioSeq *faSeqListFromMemTextRaw(char *text);
 /* Convert fa's in memory into list of dnaSeqs without
  * converting chars to N's. */
 
+boolean faFastReadNext(FILE *f, DNA **retDna, int *retSize, char **retName);
+/* Read in next FA entry as fast as we can. Return FALSE at EOF. 
+ * The returned DNA and name will be overwritten by the next call
+ * to this function. */
 
 boolean faSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName);
 /* Read in next FA entry as fast as we can. Faster than that old,
- * pokey faFastReadNext. Return FALSE at EOF.
+ * pokey faFastReadNext. Return FALSE at EOF. 
  * The returned DNA and name will be overwritten by the next call
  * to this function. */
 
@@ -110,7 +116,7 @@ void faToDna(char *poly, int size);
  * any strange characters to 'n'.  Does not change size.
  * of sequence. */
 
-void faFreeFastBuf(DNA **faFastBuf, unsigned *aFastBufSize);
+void faFreeFastBuf();
 /* Free up buffers used in fa fast and speedreading. */
 
 void faWrite(char *fileName, char *startLine, DNA *dna, int dnaSize);

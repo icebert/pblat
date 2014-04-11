@@ -8,57 +8,56 @@
 #include "twoBit.h"
 #include "nibTwo.h"
 
-static char const rcsid[] = "$Id: nibTwo.c,v 1.5 2006/03/10 17:43:37 angie Exp $";
 
 struct nibTwoCache *nibTwoCacheNew(char *pathName)
-/* Get something that will more or less transparently get sequence from
- * nib files or .2bit. */
+/* Get something that will more or less transparently get sequence from 
+ * nib files or .2bit. */ 
 {
-    struct nibTwoCache *ntc;
-    AllocVar(ntc);
-    ntc->pathName = cloneString(pathName);
-    ntc->isTwoBit = twoBitIsFile(pathName);
-    if (ntc->isTwoBit)
-        ntc->tbf = twoBitOpen(pathName);
-    else
-        ntc->nibHash = newHash(10);
-    return ntc;
+struct nibTwoCache *ntc;
+AllocVar(ntc);
+ntc->pathName = cloneString(pathName);
+ntc->isTwoBit = twoBitIsFile(pathName);
+if (ntc->isTwoBit)
+    ntc->tbf = twoBitOpen(pathName);
+else
+    ntc->nibHash = newHash(10);
+return ntc;
 }
 
 void nibTwoCacheFree(struct nibTwoCache **pNtc)
 /* Free up resources associated with nibTwoCache. */
 {
-    struct nibTwoCache *ntc = *pNtc;
-    if (ntc != NULL)
+struct nibTwoCache *ntc = *pNtc;
+if (ntc != NULL)
     {
-        freez(&ntc->pathName);
-        if (ntc->isTwoBit)
-            twoBitClose(&ntc->tbf);
-        else
+    freez(&ntc->pathName);
+    if (ntc->isTwoBit)
+        twoBitClose(&ntc->tbf);
+    else
         {
-            struct hashEl *el, *list = hashElListHash(ntc->nibHash);
-            struct nibInfo *nib;
-            for (el = list; el != NULL; el = el->next)
-            {
-                nib = el->val;
-                nibInfoFree(&nib);
-            }
-            hashElFreeList(&list);
-            hashFree(&ntc->nibHash);
-        }
-        freez(pNtc);
+	struct hashEl *el, *list = hashElListHash(ntc->nibHash);
+	struct nibInfo *nib;
+	for (el = list; el != NULL; el = el->next)
+	     {
+	     nib = el->val;
+	     nibInfoFree(&nib);
+	     }
+	hashElFreeList(&list);
+	hashFree(&ntc->nibHash);
+	}
+    freez(pNtc);
     }
 }
 
 struct dnaSeq *nibTwoCacheSeq(struct nibTwoCache *ntc, char *seqName)
 /* Return all of sequence. This will have repeats in lower case. */
 {
-    if (ntc->isTwoBit)
-        return twoBitReadSeqFrag(ntc->tbf, seqName, 0, 0);
-    else
+if (ntc->isTwoBit)
+    return twoBitReadSeqFrag(ntc->tbf, seqName, 0, 0);
+else
     {
-        struct nibInfo *nib = nibInfoFromCache(ntc->nibHash, ntc->pathName, seqName);
-        return nibLdPart(nib->fileName, nib->f, nib->size, 0, nib->size);
+    struct nibInfo *nib = nibInfoFromCache(ntc->nibHash, ntc->pathName, seqName);
+    return nibLdPart(nib->fileName, nib->f, nib->size, 0, nib->size);
     }
 }
 
@@ -69,46 +68,55 @@ struct dnaSeq *nibTwoCacheSeqPartExt(struct nibTwoCache *ntc, char *seqName, int
  * case if doMask is false, mixed case (repeats in lower)
  * if doMask is true. */
 {
-    if (ntc->isTwoBit)
+if (ntc->isTwoBit)
     {
-        return twoBitReadSeqFragExt(ntc->tbf, seqName, start, start+size,
-                                    doMask, retFullSeqSize);
+    return twoBitReadSeqFragExt(ntc->tbf, seqName, start, start+size,
+                                doMask, retFullSeqSize);
     }
-    else
+else
     {
-        struct nibInfo *nib = nibInfoFromCache(ntc->nibHash, ntc->pathName, seqName);
-        int opts = (doMask ? NIB_MASK_MIXED : 0);
-        if (retFullSeqSize != NULL)
-            *retFullSeqSize = nib->size;
-        return nibLdPartMasked(opts, nib->fileName, nib->f, nib->size, start, size);
+    struct nibInfo *nib = nibInfoFromCache(ntc->nibHash, ntc->pathName, seqName);
+    int opts = (doMask ? NIB_MASK_MIXED : 0);
+    if (retFullSeqSize != NULL)
+        *retFullSeqSize = nib->size;
+    return nibLdPartMasked(opts, nib->fileName, nib->f, nib->size, start, size);
     }
 }
 
 struct dnaSeq *nibTwoCacheSeqPart(struct nibTwoCache *ntc, char *seqName, int start, int size,
-                                  int *retFullSeqSize)
+	int *retFullSeqSize)
 /* Return part of sequence. If *retFullSeqSize is non-null then return full size of
  * sequence (not just loaded part) there. This will have repeats in lower case. */
 {
-    return nibTwoCacheSeqPartExt(ntc, seqName, start, size, TRUE, retFullSeqSize);
+return nibTwoCacheSeqPartExt(ntc, seqName, start, size, TRUE, retFullSeqSize);
 }
 
 struct dnaSeq *nibTwoLoadOne(char *pathName, char *seqName)
-/* Return sequence from a directory full of nibs or a .2bit file.
+/* Return sequence from a directory full of nibs or a .2bit file. 
  * The sequence will have repeats in lower case. */
 {
-    struct dnaSeq *seq;
-    if (twoBitIsFile(pathName))
+struct dnaSeq *seq;
+if (twoBitIsFile(pathName))
     {
-        struct twoBitFile *tbf = twoBitOpen(pathName);
-        seq = twoBitReadSeqFrag(tbf, seqName, 0, 0);
-        twoBitClose(&tbf);
+    struct twoBitFile *tbf = twoBitOpen(pathName);
+    seq = twoBitReadSeqFrag(tbf, seqName, 0, 0);
+    twoBitClose(&tbf);
     }
-    else
+else
     {
-        char path[512];
-        safef(path, sizeof(path), "%s/%s.nib", pathName, seqName);
-        seq = nibLoadAllMasked(NIB_MASK_MIXED, path);
+    char path[512];
+    safef(path, sizeof(path), "%s/%s.nib", pathName, seqName);
+    seq = nibLoadAllMasked(NIB_MASK_MIXED, path);
     }
-    return seq;
+return seq;
+}
+
+int nibTwoGetSize(struct nibTwoCache *ntc, char *seqName)
+/* Return size of sequence. */
+{
+if (ntc->isTwoBit)
+    return twoBitSeqSize(ntc->tbf, seqName);
+else
+    return nibInfoFromCache(ntc->nibHash, ntc->pathName, seqName)->size;
 }
 

@@ -9,7 +9,7 @@
 
 struct xaAli
 /* This contains information about one xeno alignment. */
-{
+    {
     struct xaAli *next;
     char *name;
     char *query;
@@ -21,7 +21,7 @@ struct xaAli
     int milliScore;
     int symCount;
     char *qSym, *tSym, *hSym;
-};
+    };
 
 void xaAliFree(struct xaAli *xa);
 /* Free up a single xaAli. */
@@ -43,13 +43,13 @@ struct xaAli *xaReadNext(FILE *f, boolean condensed);
 /* Read next xaAli from file. If condensed
  * don't fill int query, target, qSym, tSym, or hSym. */
 
-struct xaAli *xaReadRange(char *rangeIndexFileName, char *dataFileName,
-                          int start, int end, boolean condensed);
+struct xaAli *xaReadRange(char *rangeIndexFileName, char *dataFileName, 
+    int start, int end, boolean condensed);
 /* Return list of all xaAlis that range from start to end.  If condensed
  * don't fill int query, qSym, tSym, or hSym. */
 
-struct xaAli *xaRdRange(FILE *ix, FILE *data,
-                        int start, int end, boolean condensed);
+struct xaAli *xaRdRange(FILE *ix, FILE *data, 
+    int start, int end, boolean condensed);
 /* Like xaReadRange but pass in open files rather than file names. */
 
 char *xaAlignSuffix();

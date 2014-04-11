@@ -1,9 +1,12 @@
-/* Stuff to process options out of command line.
+/* Stuff to process options out of command line. 
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
 
 #ifndef OPTIONS_H
+#define OPTIONS_H
+
+#include "common.h"
 
 /* Types for options */
 #define OPTION_BOOLEAN    0x01
@@ -13,6 +16,9 @@
 #define OPTION_LONG_LONG  0x20
 #define OPTION_MULTI      0x40
 #define OPTION_DOUBLE	  0x80
+
+/* Mask for option types (excluding OPTION_MULTI) */
+#define OPTION_TYPE_MASK (OPTION_BOOLEAN|OPTION_STRING|OPTION_INT|OPTION_FLOAT|OPTION_LONG_LONG|OPTION_DOUBLE)
 
 struct optionSpec
 /* Specification of a single option.  An array of these are passed
@@ -67,7 +73,7 @@ void optionInit(int *pArgc, char *argv[], struct optionSpec *optionSpecs);
  */
 
 void optionHash(int *pArgc, char *argv[]);
-/* Read options in command line into options hash.
+/* Read options in command line into options hash.   
  * Options come in three forms:
  *      -option         words starting with dash
  *      option=val      words with = in the middle
@@ -83,6 +89,9 @@ void optionHashSome(int *pArgc, char *argv[], boolean justFirst);
 
 struct hash *optionParseIntoHash(int *pArgc, char *argv[], boolean justFirst);
 /* Read options in argc/argv into a hash of your own choosing. */
+
+void optionFree();
+/* free the option hash */
 
 #endif /* OPTIONS_H */
 

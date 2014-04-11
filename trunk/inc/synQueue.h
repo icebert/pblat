@@ -24,7 +24,7 @@ void *synQueueGet(struct synQueue *sq);
  * a message if queue is empty. */
 
 void *synQueueGrab(struct synQueue *sq);
-/* Get message off start of queue.  Return NULL immediately
+/* Get message off start of queue.  Return NULL immediately 
  * if queue is empty. */
 
 int synQueueSize(struct synQueue *sq);

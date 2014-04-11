@@ -7,13 +7,12 @@
 
 #ifndef MEMGFX_H
 #include "memgfx.h"
-#include "hash.h"
 #endif
 
 struct vGfx
 /* Virtual graphic object - mostly a bunch of function
  * pointers. */
-{
+    {
     struct vGfx *next;	/* Next in list. */
     void *data;		/* Type specific data. */
     boolean pixelBased; /* Real pixels, not PostScript or something. */
@@ -30,23 +29,23 @@ struct vGfx
     /* Fetch a single pixel.  Please do not use this, this is special
      * for verticalText only. */
 
-    void (*box)(void *v, int x, int y,
-                int width, int height, int colorIx);
+    void (*box)(void *v, int x, int y, 
+	    int width, int height, int colorIx);
     /* Draw a box. */
 
-    void (*line)(void *v,
-                 int x1, int y1, int x2, int y2, int colorIx);
+    void (*line)(void *v, 
+	    int x1, int y1, int x2, int y2, int colorIx);
     /* Draw a line from one point to another. */
 
     void (*text)(void *v, int x, int y, int colorIx, void *font, char *text);
     /* Draw a line of text with upper left corner x,y. */
 
     void (*textRight)(void *v, int x, int y, int width, int height,
-                      int colorIx, void *font, char *text);
-    /* Draw a line of text with upper left corner x,y. */
+    	int colorIx, void *font, char *text);
+   /* Draw a line of text right justified in box defined by x/y/width/height */
 
     void (*textCentered)(void *v, int x, int y, int width, int height,
-                         int colorIx, void *font, char *text);
+    	int colorIx, void *font, char *text);
     /* Draw a line of text in middle of box. */
 
     int (*findColorIx)(void *v, int r, int g, int b);
@@ -56,6 +55,9 @@ struct vGfx
     struct rgbColor (*colorIxToRgb)(void *v, int colorIx);
     /* Return rgb values for given color index. */
 
+    void (*setWriteMode)(void *v, unsigned int writeMode);
+    /* Set write mode. */
+
     void (*setClip)(void *v, int x, int y, int width, int height);
     /* Set clipping rectangle. */
 
@@ -63,19 +65,19 @@ struct vGfx
     /* Set clipping rect cover full thing. */
 
     void (*verticalSmear)(void *v,
-                          int xOff, int yOff, int width, int height,
-                          unsigned char *dots, boolean zeroClear);
+	    int xOff, int yOff, int width, int height, 
+	    Color *dots, boolean zeroClear);
     /* Put a series of one 'pixel' width vertical lines. */
 
-    void (*fillUnder)(void *v, int x1, int y1, int x2, int y2,
-                      int bottom, Color color);
+    void (*fillUnder)(void *v, int x1, int y1, int x2, int y2, 
+	    int bottom, Color color);
     /* Draw a 4 sided filled figure that has line x1/y1 to x2/y2 at
      * it's top, a horizontal line at bottom at it's bottom,  and
      * vertical lines from the bottom to y1 on the left and bottom to
      * y2 on the right. */
 
-    void (*drawPoly)(void *v, struct gfxPoly *poly, Color color,
-                     boolean filled);
+    void (*drawPoly)(void *v, struct gfxPoly *poly, Color color, 
+    	boolean filled);
     /* Draw polygon, possibly filled in color. */
 
     void (*setHint)(void *v, char *hint, char *value);
@@ -84,11 +86,18 @@ struct vGfx
     char * (*getHint)(void *v, char *hint);
     /* Get hint */
 
-};
+    int (*getFontPixelHeight)(void *v, void *font);
+    /* How high in pixels is font? */
 
-struct vGfx *vgOpenGif(int width, int height, char *fileName);
-/* Open up something that we'll write out as a gif
- * someday. */
+    int (*getFontStringWidth)(void *v, void *font, char *string);
+    /* How wide is a string? */
+    };
+
+struct vGfx *vgOpenPng(int width, int height, char *fileName, boolean useTransparency);
+/* Open up something that will write out a PNG file upon vgClose.  
+ * If useTransparency, then the first color in memgfx's colormap/palette is
+ * assumed to be the image background color, and pixels of that color
+ * are made transparent. */
 
 struct vGfx *vgOpenPostScript(int width, int height, char *fileName);
 /* Open up something that will someday be a PostScript file. */
@@ -115,7 +124,7 @@ void vgClose(struct vGfx **pVg);
 
 #define vgTextRight(v,x,y,width,height,color,font,string) \
 	v->textRight(v->data,x,y,width,height,color,font,string)
-/* Draw a line of text with upper left corner x,y. */
+/* Draw a line of text right justified in box defined by x/y/width/height */
 
 #define vgTextCentered(v,x,y,width,height,color,font,string) \
 	v->textCentered(v->data,x,y,width,height,color,font,string)
@@ -126,6 +135,10 @@ void vgClose(struct vGfx **pVg);
 
 #define vgColorIxToRgb(v,colorIx) v->colorIxToRgb(v->data, colorIx)
 /* Return rgb values for given color index. */
+
+#define vgSetWriteMode(v, writeMode)    \
+	v->setWriteMode(v->data, writeMode)
+/* Set write mode. */
 
 #define vgSetClip(v,x,y,width,height) \
 	v->setClip(v->data, x, y, width, height)
@@ -145,24 +158,30 @@ void vgClose(struct vGfx **pVg);
 
 #define vgFillUnder(v,x1,y1,x2,y2,bottom,color) \
 	v->fillUnder(v->data,x1,y1,x2,y2,bottom,color)
-/* Draw a 4 sided filled figure that has line x1/y1 to x2/y2 at
- * it's top, a horizontal line at bottom at it's bottom,  and
- * vertical lines from the bottom to y1 on the left and bottom to
- * y2 on the right. */
+    /* Draw a 4 sided filled figure that has line x1/y1 to x2/y2 at
+     * it's top, a horizontal line at bottom at it's bottom,  and
+     * vertical lines from the bottom to y1 on the left and bottom to
+     * y2 on the right. */
 
 #define vgDrawPoly(v,poly,color,filled) \
 	v->drawPoly(v->data,poly,color,filled)
-/* Draw a polygon in color, optionally filled. */
+    /* Draw a polygon in color, optionally filled. */
 
 #define vgSetHint(v,hint,value) \
 	v->setHint(v->data,hint,value)
-/* Set hint */
+    /* Set hint */
 
 #define vgGetHint(v,hint) \
 	v->getHint(v->data,hint)
-/* Get hint */
+    /* Get hint */
 
+#define vgGetFontPixelHeight(v,font) \
+	v->getFontPixelHeight(v->data,font)
+    /* How high in pixels is font? */
 
+#define vgGetFontStringWidth(v,font,string) \
+	v->getFontStringWidth(v->data,font,string)
+    /* How wide is a string? */
 
 int vgFindRgb(struct vGfx *vg, struct rgbColor *rgb);
 /* Find color index corresponding to rgb color. */

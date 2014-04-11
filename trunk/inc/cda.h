@@ -11,22 +11,22 @@
 
 #ifndef MEMGFX_H
 #include "memgfx.h"
-#endif
+#endif 
 
 #ifndef FUZZYFIND_H
 #include "fuzzyFind.h"
 #endif
 
 struct cdaBlock
-{
+    {
     int nStart, nEnd;           /* Start and end position in cDNA. */
     int hStart, hEnd;           /* Start and end position on chromosome. */
     UBYTE startGood, endGood;   /* Number of bases matching perfectly on end */
     UBYTE midScore;             /* 0-255  255 is perfect. */
-};
+    };
 
 struct cdaAli
-{
+    {
     struct cdaAli *next;
     char *name;
     int baseCount;
@@ -37,11 +37,11 @@ struct cdaAli
     UBYTE isEmbryonic;
     UBYTE hasIntrons;
     int orientation;                /* +1 or -1 depending on whether *clone* is + or - WRT chrom . */
-    /* New and perhaps not always respected. */
+                                    /* New and perhaps not always respected. */
     int chromStart, chromEnd;
     short blockCount;               /* Number of blocks. */
     struct cdaBlock *blocks;        /* Dynamically allocated array. */
-};
+    };
 
 boolean cdaCloneIsReverse(struct cdaAli *cda);
 /* Returns TRUE if clone (.3/.5 pair) aligns on reverse strand. */
@@ -77,9 +77,9 @@ void cdaCoalesceBlocks(struct cdaAli *ca);
 void cdaCoalesceFast(struct cdaAli *ca);
 /* Coalesce blocks as above, but don't update the score. */
 
-void cdaShowAlignmentTrack(struct memGfx *mg,
-                           int xOff, int yOff, int width, int height,  Color goodColor, Color badColor,
-                           int dnaSize, int dnaOffset, struct cdaAli *cda, char repeatChar);
+void cdaShowAlignmentTrack(struct memGfx *mg, 
+    int xOff, int yOff, int width, int height,  Color goodColor, Color badColor,
+    int dnaSize, int dnaOffset, struct cdaAli *cda, char repeatChar);
 /* Draw alignment on a horizontal track of picture. */
 
 void cdaRcOne(struct cdaAli *cda, int dnaStart, int baseCount);
@@ -94,8 +94,8 @@ void cdaFreeAli(struct cdaAli *ca);
 void cdaFreeAliList(struct cdaAli **pList);
 /* Free list of cdaAli. */
 
-struct cdaAli *cdaAliFromFfAli(struct ffAli *aliList,
-                               DNA *needle, int needleSize, DNA *hay, int haySize, boolean isRc);
+struct cdaAli *cdaAliFromFfAli(struct ffAli *aliList, 
+    DNA *needle, int needleSize, DNA *hay, int haySize, boolean isRc);
 /* Convert from ffAli to cdaAli format. */
 
 void cdaWrite(char *fileName, struct cdaAli *cdaList);

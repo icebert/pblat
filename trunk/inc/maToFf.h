@@ -8,10 +8,10 @@
 
 /* Convert between mrnaAli and ffAli representations of an alignment. */
 
-struct mrnaAli *ffToMa(struct ffAli *ffLeft,
-                       struct dnaSeq *mrnaSeq, char *mrnaAcc,
-                       struct dnaSeq *genoSeq, char *genoAcc,
-                       boolean isRc, boolean isEst);
+struct mrnaAli *ffToMa(struct ffAli *ffLeft, 
+	struct dnaSeq *mrnaSeq, char *mrnaAcc,
+	struct dnaSeq *genoSeq, char *genoAcc, 
+	boolean isRc, boolean isEst);
 /* Convert ffAli structure to mrnaAli. */
 
 struct ffAli *maToFf(struct mrnaAli *ma, DNA *needle, DNA *haystack);

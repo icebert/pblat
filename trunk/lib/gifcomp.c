@@ -56,7 +56,6 @@
 #include "common.h"
 #include <setjmp.h>
 
-static char const rcsid[] = "$Id: gifcomp.c,v 1.7 2003/05/21 21:03:22 kent Exp $";
 
 #define UBYTE unsigned char
 
@@ -86,59 +85,59 @@ static short free_code;
 
 static void init_table(short min_code_size)
 {
-    code_size = min_code_size + 1;
-    clear_code = 1 << min_code_size;
-    eof_code = clear_code + 1;
-    free_code = clear_code + 2;
-    max_code = 1 << code_size;
+code_size = min_code_size + 1;
+clear_code = 1 << min_code_size;
+eof_code = clear_code + 1;
+free_code = clear_code + 2;
+max_code = 1 << code_size;
 
-    zeroBytes(code_ids, TABLE_SIZE*sizeof(code_ids[0]));
+zeroBytes(code_ids, TABLE_SIZE*sizeof(code_ids[0]));
 }
 
 
 static void flush(size_t n)
 {
-    if (fputc(n,gif_file) < 0)
+if (fputc(n,gif_file) < 0)
     {
-        longjmp(recover, -3);
+    longjmp(recover, -3);
     }
-    if (fwrite(gif_byte_buff, 1, n, gif_file) < n)
+if (fwrite(gif_byte_buff, 1, n, gif_file) < n)
     {
-        longjmp(recover, -3);
+    longjmp(recover, -3);
     }
 }
 
 
 static void write_code(short code)
 {
-    long temp;
-    register short byte_offset;
-    register short bits_left;
+long temp;
+register short byte_offset; 
+register short bits_left;
 
-    byte_offset = bit_offset >> 3;
-    bits_left = bit_offset & 7;
+byte_offset = bit_offset >> 3;
+bits_left = bit_offset & 7;
 
-    if (byte_offset >= 254)
-    {
-        flush(byte_offset);
-        gif_byte_buff[0] = gif_byte_buff[byte_offset];
-        bit_offset = bits_left;
-        byte_offset = 0;
-    }
+if (byte_offset >= 254)
+	{
+	flush(byte_offset);
+	gif_byte_buff[0] = gif_byte_buff[byte_offset];
+	bit_offset = bits_left;
+	byte_offset = 0;
+	}
 
-    if (bits_left > 0)
-    {
-        temp = ((long) code << bits_left) | gif_byte_buff[byte_offset];
-        gif_byte_buff[byte_offset] = (UBYTE)temp;
-        gif_byte_buff[byte_offset + 1] = (UBYTE)(temp >> 8);
-        gif_byte_buff[byte_offset + 2] = (UBYTE)(temp >> 16);
-    }
-    else
-    {
-        gif_byte_buff[byte_offset] = (UBYTE)code;
-        gif_byte_buff[byte_offset + 1] = (UBYTE)(code >> 8);
-    }
-    bit_offset += code_size;
+if (bits_left > 0)
+	{
+	temp = ((long) code << bits_left) | gif_byte_buff[byte_offset];
+	gif_byte_buff[byte_offset] = (UBYTE)temp;
+	gif_byte_buff[byte_offset + 1] = (UBYTE)(temp >> 8);
+	gif_byte_buff[byte_offset + 2] = (UBYTE)(temp >> 16);
+	}
+else
+	{
+	gif_byte_buff[byte_offset] = (UBYTE)code;
+	gif_byte_buff[byte_offset + 1] = (UBYTE)(code >> 8);
+	}
+bit_offset += code_size;
 }
 
 
@@ -160,146 +159,146 @@ static void write_code(short code)
  */
 static short compress_data(int min_code_size)
 {
-    short status;
-    short prefix_code;
-    short d;
-    register int hx;
-    register short suffix_char;
+short status;
+short prefix_code;
+short d;
+register int hx;
+register short suffix_char;
 
-    status = setjmp(recover);
+status = setjmp(recover);
 
-    if (status != 0)
+if (status != 0)
     {
-        return status;
+    return status;
     }
 
-    bit_offset = 0;
-    init_table(min_code_size);
-    write_code(clear_code);
+bit_offset = 0;
+init_table(min_code_size);
+write_code(clear_code);
+suffix_char = *gif_wpt++;
+gif_wcount -= 1;
+
+prefix_code = suffix_char;
+
+while (--gif_wcount >= 0)
+    {
     suffix_char = *gif_wpt++;
-    gif_wcount -= 1;
+    hx = prefix_code ^ suffix_char << 5;
+    d = 1;
 
-    prefix_code = suffix_char;
+    for (;;)
+	{
+	if (code_ids[hx] == 0)
+	    {
+	    write_code(prefix_code);
 
-    while (--gif_wcount >= 0)
-    {
-        suffix_char = *gif_wpt++;
-        hx = prefix_code ^ suffix_char << 5;
-        d = 1;
+	    d = free_code;
 
-        for (;;)
-        {
-            if (code_ids[hx] == 0)
-            {
-                write_code(prefix_code);
+	    if (free_code <= LARGEST_CODE)
+		{
+		prior_codes[hx] = prefix_code;
+		added_chars[hx] = (UBYTE)suffix_char;
+		code_ids[hx] = free_code;
+		free_code++;
+		}
 
-                d = free_code;
+	    if (d == max_code)
+		{
+		if (code_size < 12)
+		    {
+		    code_size++;
+		    max_code <<= 1;
+		    }
+		else
+		    {
+		    write_code(clear_code);
+		    init_table(min_code_size);
+		    }
+	        }
 
-                if (free_code <= LARGEST_CODE)
-                {
-                    prior_codes[hx] = prefix_code;
-                    added_chars[hx] = (UBYTE)suffix_char;
-                    code_ids[hx] = free_code;
-                    free_code++;
-                }
+	    prefix_code = suffix_char;
+	    break;
+	    }
 
-                if (d == max_code)
-                {
-                    if (code_size < 12)
-                    {
-                        code_size++;
-                        max_code <<= 1;
-                    }
-                    else
-                    {
-                        write_code(clear_code);
-                        init_table(min_code_size);
-                    }
-                }
+	if (prior_codes[hx] == prefix_code &&
+		added_chars[hx] == suffix_char)
+	    {
+	    prefix_code = code_ids[hx];
+	    break;
+	    }
 
-                prefix_code = suffix_char;
-                break;
-            }
-
-            if (prior_codes[hx] == prefix_code &&
-                    added_chars[hx] == suffix_char)
-            {
-                prefix_code = code_ids[hx];
-                break;
-            }
-
-            hx += d;
-            d += 2;
-            if (hx >= TABLE_SIZE)
-                hx -= TABLE_SIZE;
-        }
+	hx += d;
+	d += 2;
+	if (hx >= TABLE_SIZE)
+	    hx -= TABLE_SIZE;
+	}
     }
 
-    write_code(prefix_code);
+write_code(prefix_code);
 
-    write_code(eof_code);
+write_code(eof_code);
 
 
-    /* Make sure the code buffer is flushed */
+/* Make sure the code buffer is flushed */
 
-    if (bit_offset > 0)
+if (bit_offset > 0)
     {
-        int byte_offset = (bit_offset >> 3);
-        if (byte_offset == 255)	/* Make sure we don't write a zero by mistake. */
+    int byte_offset = (bit_offset >> 3);
+    if (byte_offset == 255)	/* Make sure we don't write a zero by mistake. */
         {
-            int bits_left = bit_offset & 7;
-            flush(255);
-            if (bits_left)
-            {
-                gif_byte_buff[0] = gif_byte_buff[byte_offset];
-                flush(1);
-            }
-        }
-        else
-        {
-            flush((bit_offset + 7)/8);
-        }
+	int bits_left = bit_offset & 7;
+	flush(255);
+	if (bits_left)
+	    {
+	    gif_byte_buff[0] = gif_byte_buff[byte_offset];
+	    flush(1);
+	    }
+	}
+    else
+	{
+	flush((bit_offset + 7)/8);
+	}
     }
 
-    flush(0);				/* end-of-data */
-    return 0;
+flush(0);				/* end-of-data */
+return 0;
 }
 
 short gif_compress_data(int min_code_size, unsigned char *pt, long size, FILE *out)
 {
-    int ret;
+int ret;
 
-    /* Make sure min_code_size is reasonable. */
-    if (min_code_size < 2 || min_code_size > 9)
+/* Make sure min_code_size is reasonable. */
+if (min_code_size < 2 || min_code_size > 9)
     {
-        if (min_code_size == 1)
-            min_code_size = 2;
-        else
-            return -3;
+    if (min_code_size == 1)
+	min_code_size = 2;
+    else
+	return -3;
     }
 
-    /* Store input parameters where rest of routines can use. */
-    gif_file = out;
-    gif_wpt = pt;
-    gif_wcount = size;
+/* Store input parameters where rest of routines can use. */
+gif_file = out;
+gif_wpt = pt;
+gif_wcount = size;
 
-    ret = -2;	/* out of memory default */
-    prior_codes = NULL;
-    code_ids = NULL;
-    added_chars = NULL;
-    if ((prior_codes = (short*)needMem(TABLE_SIZE*sizeof(short))) == NULL)
-        goto OUT;
-    if ((code_ids = (short*)needMem(TABLE_SIZE*sizeof(short))) == NULL)
-        goto OUT;
-    if ((added_chars = (unsigned char*)needMem(TABLE_SIZE)) == NULL)
-        goto OUT;
+ret = -2;	/* out of memory default */
+prior_codes = NULL;
+code_ids = NULL;
+added_chars = NULL;
+if ((prior_codes = (short*)needMem(TABLE_SIZE*sizeof(short))) == NULL)
+	goto OUT;
+if ((code_ids = (short*)needMem(TABLE_SIZE*sizeof(short))) == NULL)
+	goto OUT;
+if ((added_chars = (unsigned char*)needMem(TABLE_SIZE)) == NULL)
+	goto OUT;
 
-    ret = compress_data(min_code_size);
+ret = compress_data(min_code_size);
 
 OUT:
-    gentleFree(prior_codes);
-    gentleFree(code_ids);
-    gentleFree(added_chars);
-    return(ret);
+gentleFree(prior_codes);
+gentleFree(code_ids);
+gentleFree(added_chars);
+return(ret);
 }
 

@@ -1,7 +1,6 @@
 /* scoreWindow - find window with most matches to a given char */
 #include "common.h"
 
-static char const rcsid[] = "$Id: scoreWindow.c,v 1.4 2004/07/16 22:42:55 baertsch Exp $";
 
 int scoreWindow(char c, char *s, int size, int *score, int *start, int *end, int match, int misMatch)
 /* simple program to find max scoring window representing string of char c in a string s of size size */
@@ -9,40 +8,40 @@ int scoreWindow(char c, char *s, int size, int *score, int *start, int *end, int
 /* when used for scoring polyA tails, set c='A' for positive strand  or c='T' for neg strand */
 /* start, end are returned pointing to the start and end of the highest scoring window in s */
 {
-    int i=0, j=0, max=0, count = 0;
+int i=0, j=0, max=0, count = 0; 
 
-    *end = 0;
+*end = 0;
 
-    for (i=0 ; i<size ; i++)
+for (i=0 ; i<size ; i++)
     {
-        int prevScore = (i > 0) ? score[i-1] : 0;
+    int prevScore = (i > 0) ? score[i-1] : 0;
 
-        if (toupper(s[i]) == toupper(c) )
-            score[i] = prevScore+match;
-        else
-            score[i] = prevScore-misMatch;
-        if (score[i] >= max)
+    if (toupper(s[i]) == toupper(c) )
+        score[i] = prevScore+match;
+    else
+        score[i] = prevScore-misMatch;
+    if (score[i] >= max)
         {
-            max = score[i];
-            *end = i;
-            /* traceback to find start */
-            for (j=i ; j>=0 ; j--)
-                if (score[j] == 0)
+        max = score[i];
+        *end = i;
+        /* traceback to find start */
+        for (j=i ; j>=0 ; j--)
+            if (score[j] == 0)
                 {
-                    *start = j+1;
-                    break;
+                *start = j+1;
+                break;
                 }
         }
-        if (score[i] < 0)
-            score[i] = 0;
+    if (score[i] < 0) 
+        score[i] = 0;
     }
-    assert (*end < size);
+assert (*end < size);
 
-    for (i=*start ; i<=*end ; i++)
+for (i=*start ; i<=*end ; i++)
     {
-        assert (i < size);
-        if (toupper(s[i]) == toupper(c) )
-            count++;
+    assert (i < size);
+    if (toupper(s[i]) == toupper(c) )
+        count++;
     }
-    return count;
+return count;
 }

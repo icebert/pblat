@@ -9,11 +9,11 @@
 
 #ifndef DNAUTIL_H
 #include "dnautil.h"
-#endif
+#endif 
 
 #ifndef DLIST_H
 #include "dlist.h"
-#endif
+#endif 
 
 #ifndef UNFIN_H
 #include "unfin.h"
@@ -21,7 +21,7 @@
 
 struct ensAnalysis
 /* A category of a feature. */
-{
+    {
     struct ensAnalysis *next;	/* Next in list */
     int id;			/* Unique id for this feature type. */
     char *db;			/* Database used. */
@@ -31,28 +31,28 @@ struct ensAnalysis
     char *gffSource;		/* Source field from GFF. */
     char *gffFeature;		/* Feature field from GFF. */
     char *shortName;		/* 15 letter summary. */
-};
+    };
 
 struct ensFeature
 /* An ensemble feature. */
-{
+    {
     struct ensFeature *next;	   /* Next in list. */
     struct contigTree *tContig;    /* Name of target (genomic) sequence */
     int tStart, tEnd;              /* Position in genomic sequence. */
     int score;                     /* Score (I don't know units) */
     int orientation;               /* +1 or -1.  Strand relative to contig. */
     int type;                      /* Index into analysis table describing type of feature. */
-    char *typeName;                /* Subtype of type really. May be NULL. Not alloced here. */
+    char *typeName;                /* Subtype of type really. May be NULL. Not alloced here. */ 
     int qStart, qEnd;              /* Query (cDNA, protein, etc.) sequence position. */
     char *qName;                   /* Query sequence name. */
-};
+    };
 
 struct ensExon
 /* An ensemble exon.  Since multiple transcripts can
  * use the same exon, this is stored as a reference on
  * a dlList in the transcript and as an instance in the
  * slList in the gene. */
-{
+    {
     struct ensExon *next;		/* Next in list (in ensGene) */
     char *id;				/* Ensemble ID (not allocated here). */
     struct contigTree *contig;	        /* Contig within clone this is in. (Not allocated here).*/
@@ -61,32 +61,32 @@ struct ensExon
     int orientation;                    /* +1 or -1. Strand relative to contig. */
     int seqStart;			/* Start position. */
     int seqEnd;				/* End position. */
-};
+    };
 
 struct ensTranscript
 /* A transcript (isoform) of a gene. */
-{
+    {
     struct ensTranscript *next;		/* Next in list. */
     char *id;				/* Ensemble ID. */
     struct dlList *exonList;		/* Ordered list of exon references. */
     struct ensExon *startExon;          /* Reference to first coding exon. */
     struct ensExon *endExon;            /* Reference to last coding exon. */
     int startSeq, endSeq;               /* Start, end of coding region. */
-};
+    };
 
 struct ensGene
 /* A gene.  A collection of exons and how they
  * are put together. */
-{
+    {
     struct ensGene *next;		  /* Next in list. */
     char *id;				  /* Ensemble ID with many zeroes. */
     struct ensTranscript *transcriptList; /* List of ways to transcribe and splice. */
     struct hash *exonIdHash;		  /* Fast lookup of exons from exon ids. */
     struct ensExon *exonList;		  /* Total exons in all transcripts. */
-};
+    };
 
 void ensGetAnalysisTable(struct ensAnalysis ***retTable, int *retCount);
-/* Returns analysis table (array of different things a feature can be).
+/* Returns analysis table (array of different things a feature can be). 
  * No need to free this, it's managed by system. */
 
 struct dnaSeq *ensDnaInBacRange(char *clone, int start, int end, enum dnaCase dnaCase);
@@ -150,7 +150,7 @@ int ensBacSubmitLength(char *clone);
 /* Return size of clone in GenBank/EMBL submission  coordinate space. */
 
 struct contigTree *ensBacContigs(char *bacId);
-/* Return contigTree rooted at Bac.  Do not free this or modify it,
+/* Return contigTree rooted at Bac.  Do not free this or modify it, 
  * the system takes care of it. */
 
 struct contigTree *ensGetContig(char *contigId);

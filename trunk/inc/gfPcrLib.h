@@ -6,12 +6,12 @@
 
 struct gfPcrInput
 /* Info for input to one PCR experiment. */
-{
+    {
     struct gfPcrInput *next;  /* Next in singly linked list. */
     char *name;	/* Name of experiment */
     char *fPrimer;	/* Forward primer - 15-30 bases */
     char *rPrimer;	/* Reverse primer - after fPrimer and on opposite strand */
-};
+    };
 
 void gfPcrInputStaticLoad(char **row, struct gfPcrInput *ret);
 /* Load a row from gfPcrInput table into ret.  The contents of ret will
@@ -34,7 +34,7 @@ void gfPcrInputFreeList(struct gfPcrInput **pList);
 
 struct gfPcrOutput
 /* Output of PCR experiment. */
-{
+    {
     struct gfPcrOutput *next;	/* Next in list */
     char *name;			/* Name of experiment. */
     char *fPrimer;	/* Forward primer - 15-30 bases */
@@ -48,7 +48,7 @@ struct gfPcrOutput
                          * Note in some senses you'll want to replace
 			 * start and ends of this with fPrimer/rPrimer to
 			 * be strictly accurate.  */
-};
+    };
 
 void gfPcrOutputFree(struct gfPcrOutput **pOut);
 /* Free up a gfPcrOutput structure. */
@@ -59,31 +59,37 @@ void gfPcrOutputFreeList(struct gfPcrOutput **pList);
 
 
 
-void gfPcrLocal(char *pcrName,
-                struct dnaSeq *seq, int seqOffset, char *seqName, int seqSize,
-                int maxSize, char *fPrimer, int fPrimerSize, char *rPrimer, int rPrimerSize,
-                int minPerfect, int minGood, char strand, struct gfPcrOutput **pOutList);
+void gfPcrLocal(char *pcrName, 
+	struct dnaSeq *seq, int seqOffset, char *seqName, int seqSize,
+	int maxSize, char *fPrimer, int fPrimerSize, char *rPrimer, int rPrimerSize,
+	int minPerfect, int minGood, char strand, struct gfPcrOutput **pOutList);
 /* Do detailed PCR scan on DNA already loaded into memory and put results
  * (in reverse order) on *pOutList. */
 
 struct gfRange *gfPcrGetRanges(char *host, char *port, char *fPrimer, char *rPrimer,
-                               int maxSize);
+	int maxSize);
 /* Query gfServer with primers and convert response to a list of gfRanges. */
 
-struct gfPcrOutput *gfPcrViaNet(char *host, char *port, char *seqDir,
-                                struct gfPcrInput *inList,
-                                int maxSize, int minPerfect, int minGood);
+struct gfPcrOutput *gfPcrViaNet(char *host, char *port, char *seqDir, 
+	struct gfPcrInput *inList,
+	int maxSize, int minPerfect, int minGood);
 /* Do PCRs using gfServer index, returning list of results. */
 
-void gfPcrOutputWriteList(struct gfPcrOutput *outList, char *outType,
-                          char *url, FILE *f);
-/* Write list of outputs in specified format (either "fa" or "bed")
+void gfPcrOutputWriteOne(struct gfPcrOutput *out, char *outType, 
+	char *url, FILE *f);
+/* Write a single output in specified format (either "fa" or "bed") 
  * to file.  If url is non-null it should be a printf formatted
  * string that takes %s, %d, %d for chromosome, start, end. */
 
-void gfPcrOutputWriteAll(struct gfPcrOutput *outList,
-                         char *outType, char *url, char *fileName);
-/* Create file of outputs in specified format (either "fa" or "bed")
+void gfPcrOutputWriteList(struct gfPcrOutput *outList, char *outType, 
+	char *url, FILE *f);
+/* Write list of outputs in specified format (either "fa" or "bed") 
+ * to file.  If url is non-null it should be a printf formatted
+ * string that takes %s, %d, %d for chromosome, start, end. */
+
+void gfPcrOutputWriteAll(struct gfPcrOutput *outList, 
+	char *outType, char *url, char *fileName);
+/* Create file of outputs in specified format (either "fa" or "bed") 
  * to file.  If url is non-null it should be a printf formatted
  * string that takes %s, %d, %d for chromosome, start, end. */
 

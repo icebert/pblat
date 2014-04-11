@@ -13,14 +13,14 @@
 
 struct xpStack
 /* A context stack for parser. */
-{
+    {
     struct dyString *tag;   /* Name of tag. */
     struct dyString *text;  /* Contains text if any. */
-};
+    };
 
 struct xp
 /* A minimal non-verifying xml parser. */
-{
+    {
     struct xp *next;	/* Next in list. */
     struct xpStack *stack;		/* Current top of stack. */
     struct xpStack stackBuf[64];	/* Stack buffer and start of stack. */
@@ -38,13 +38,13 @@ struct xp
     char *inBufEnd;			/* Pointer to end of input buffer. */
     char *in;				/* Next character to parse. */
     struct hash *symHash;		/* Hash of &gt; &lt; etc. */
-};
+    };
 
-struct xp *xpNew(void *userData,
-                 void (*atStartTag)(void *userData, char *name, char **atts),
-                 void (*atEndTag)(void *userData, char *name, char *text),
-                 int (*read)(void *userData, char *buf, int bufSize),
-                 char *fileName);
+struct xp *xpNew(void *userData, 
+   void (*atStartTag)(void *userData, char *name, char **atts),
+   void (*atEndTag)(void *userData, char *name, char *text),
+   int (*read)(void *userData, char *buf, int bufSize),
+   char *fileName);
 /* Form a new xp parser.  File name may be NULL - just used for
  * error reporting. */
 

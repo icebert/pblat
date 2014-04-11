@@ -1,6 +1,8 @@
 /* blat - Standalone BLAT fast sequence search command line tool. */
 /* Copyright 2001-2004 Jim Kent.  All rights reserved. */
-/* Modified by Wang Meng. 2012 */
+
+/* Modified by Meng Wang. 2012-2014 */
+
 #include "common.h"
 #include "memalloc.h"
 #include "linefile.h"
@@ -22,7 +24,7 @@
 #include <sys/types.h>
 #include <pthread.h>
 
-static char const rcsid[] = "$Id: blat.c,v 1.111 2006/12/01 18:30:43 kent Exp $";
+
 
 /* Variables shared with other modules.  Set in this module, read only
  * elsewhere. */
@@ -65,23 +67,17 @@ void usage()
 /* Explain usage and exit. */
 {
     printf(
-        "blat - BLAT with parallel supports v. %s fast sequence search command line tool\n"
+        "pblat - BLAT with parallel supports v. %s fast sequence search command line tool\n"
+        "\n"
         "usage:\n"
-        "   blat database query [-ooc=11.ooc] output.psl\n"
+        "   pblat database query [-ooc=11.ooc] output.psl\n"
         "where:\n"
-        "   database and query are each either a .fa , .nib or .2bit file,\n"
-        "   or a list these files one file name per line.\n"
+        "   database and query are each a .fa file\n"
         "   -ooc=11.ooc tells the program to load over-occurring 11-mers from\n"
         "               and external file.  This will increase the speed\n"
         "               by a factor of 40 in many cases, but is not required\n"
         "   output.psl is where to put the output.\n"
-        "   Subranges of nib and .2bit files may specified using the syntax:\n"
-        "      /path/file.nib:seqid:start-end\n"
-        "   or\n"
-        "      /path/file.2bit:seqid:start-end\n"
-        "   or\n"
-        "      /path/file.nib:start-end\n"
-        "   With the second form, a sequence id of file:start-end will be used.\n"
+        "\n"
         "options:\n"
         "   -t=type     Database type.  Type is one of:\n"
         "                 dna - DNA sequence\n"
@@ -143,7 +139,7 @@ void usage()
         "   -trimHardA  Remove poly-A tail from qSize as well as alignments in \n"
         "               psl output\n"
         "   -fastMap    Run for fast DNA/DNA remapping - not allowing introns, \n"
-        "               requiring high %%ID\n"
+        "               requiring high %%ID. Query sizes must not exceed %d.\n"
         "   -out=type   Controls output file format.  Type is one of:\n"
         "                   psl - Default.  Tab separated format, no sequence\n"
         "                   pslx - Tab separated format with sequence\n"
@@ -158,7 +154,7 @@ void usage()
         "               terminal exons.  Not recommended for ESTs\n"
         "   -maxIntron=N  Sets maximum intron size. Default is %d\n"
         "   -extendThroughN - Allows extension of alignment through large blocks of N's\n"
-        , gfVersion, ffIntronMaxDefault
+        , gfVersion, MAXSINGLEPIECESIZE, ffIntronMaxDefault
     );
     exit(-1);
 }
@@ -203,6 +199,12 @@ void searchOneStrand(struct dnaSeq *seq, struct genoFind *gf, FILE *psl,
                      boolean isRc, struct hash *maskHash, Bits *qMaskBits, struct gfOutput *gvo)
 /* Search for seq in index, align it, and write results to psl. */
 {
+    if (fastMap && (seq->size > MAXSINGLEPIECESIZE))
+        errAbort("Maximum single piece size (%d) exceeded by query %s of size (%d). "
+        "Larger pieces will have to be split up until no larger than this limit "
+        "when the -fastMap option is used."	
+        , MAXSINGLEPIECESIZE, seq->name, seq->size);
+    
     gfLongDnaInMem(seq, gf, isRc, minScore, qMaskBits, gvo, fastMap, optionExists("fine"));
 }
 
@@ -305,7 +307,7 @@ Bits *maskQuerySeq(struct dnaSeq *seq, boolean isProt,
 void searchOneMaskTrim(struct dnaSeq *seq, boolean isProt,
                        struct genoFind *gf, FILE *outFile,
                        struct hash *maskHash,
-                       unsigned long *retTotalSize, int *retCount,
+                       long long *retTotalSize, int *retCount,
                        struct gfOutput *gvo)
 /* Search a single sequence against a single genoFind index. */
 {
@@ -315,6 +317,8 @@ void searchOneMaskTrim(struct dnaSeq *seq, boolean isProt,
     struct dnaSeq trimmedSeq;
     ZeroVar(&trimmedSeq);
     trimSeq(seq, &trimmedSeq);
+    if (qType == gftRna || qType == gftRnaX)
+        memSwapChar(trimmedSeq.dna, trimmedSeq.size, 'u', 't');
     searchOne(&trimmedSeq, gf, outFile, isProt, maskHash, qMaskBits, gvo);
     *retTotalSize += seq->size;
     *retCount += 1;
@@ -338,7 +342,7 @@ void* performSearch(void* args)
     int             i;
     char            *fileName;
     int             count = 0;
-    unsigned long   totalSize = 0;
+    long long   totalSize = 0;
 
     unsigned faFastBufSize = 0;
     DNA *faFastBuf;
@@ -407,7 +411,7 @@ void* performSearch(void* args)
         }
     }
     if (showStatus)
-        printf("Searched %lu bases in %d sequences\n", totalSize, count);
+        printf("Searched %lld bases in %d sequences\n", totalSize, count);
 }
 
 void searchOneIndex(int fileCount, char *files[], struct lineFile *lf[], struct genoFind *gf,
@@ -767,7 +771,7 @@ void blat(char *dbFile, int queryCount, char **queryFiles, struct lineFile **lf,
 int main(int argc, char *argv[])
 /* Process command line into global variables and call blat. */
 {
-    boolean dIsProtLike, qIsProtLike;
+    boolean tIsProtLike, qIsProtLike;
     char buf[1024];
     char **queryFiles;
     FILE **out;
@@ -807,13 +811,13 @@ int main(int argc, char *argv[])
     {
     case gftProt:
     case gftDnaX:
-        dIsProtLike = TRUE;
+        tIsProtLike = TRUE;
         break;
     case gftDna:
-        dIsProtLike = FALSE;
+        tIsProtLike = FALSE;
         break;
     default:
-        dIsProtLike = FALSE;
+        tIsProtLike = FALSE;
         errAbort("Illegal value for 't' parameter");
         break;
     }
@@ -835,11 +839,11 @@ int main(int argc, char *argv[])
         qIsProtLike = FALSE;
         break;
     }
-    if ((dIsProtLike ^ qIsProtLike) != 0)
-        errAbort("d and q must both be either protein or dna");
+    if ((tIsProtLike ^ qIsProtLike) != 0)
+        errAbort("t and q must both be either protein or dna");
 
     /* Set default tile size for protein-based comparisons. */
-    if (dIsProtLike)
+    if (tIsProtLike)
     {
         tileSize = 5;
         minMatch = 1;
@@ -850,7 +854,7 @@ int main(int argc, char *argv[])
     /* Get tile size and related parameters from user and make sure
      * they are within range. */
     tileSize = optionInt("tileSize", tileSize);
-    stepSize = optionInt("stepSize", stepSize);
+    stepSize = optionInt("stepSize", tileSize);
     minMatch = optionInt("minMatch", minMatch);
     oneOff = optionExists("oneOff");
     fastMap = optionExists("fastMap");
@@ -858,7 +862,7 @@ int main(int argc, char *argv[])
     maxGap = optionInt("maxGap", maxGap);
     minRepDivergence = optionFloat("minRepDivergence", minRepDivergence);
     minIdentity = optionFloat("minIdentity", minIdentity);
-    gfCheckTileSize(tileSize, dIsProtLike);
+    gfCheckTileSize(tileSize, tIsProtLike);
     if (minMatch < 0)
         errAbort("minMatch must be at least 1");
     if (maxGap > 100)
@@ -870,44 +874,7 @@ int main(int argc, char *argv[])
     if (optionExists("repMatch"))
         repMatch = optionInt("repMatch", repMatch);
     else
-    {
-        if (dIsProtLike)
-        {
-            if (tileSize == 3)
-                repMatch = 600000;
-            else if (tileSize == 4)
-                repMatch = 30000;
-            else if (tileSize == 5)
-                repMatch = 1500;
-            else if (tileSize == 6)
-                repMatch = 75;
-            else if (tileSize <= 7)
-                repMatch = 10;
-        }
-        else
-        {
-            if (tileSize == 15)
-                repMatch = 16;
-            else if (tileSize == 14)
-                repMatch = 32;
-            else if (tileSize == 13)
-                repMatch = 128;
-            else if (tileSize == 12)
-                repMatch = 256;
-            else if (tileSize == 11)
-                repMatch = 4*256;
-            else if (tileSize == 10)
-                repMatch = 16*256;
-            else if (tileSize == 9)
-                repMatch = 64*256;
-            else if (tileSize == 8)
-                repMatch = 256*256;
-            else if (tileSize == 7)
-                repMatch = 1024*256;
-            else if (tileSize == 6)
-                repMatch = 4*1024*256;
-        }
-    }
+        repMatch = gfDefaultRepMatch(tileSize, stepSize, tIsProtLike);
 
     /* Gather last few command line options. */
     noHead = optionExists("noHead");
@@ -951,26 +918,25 @@ int main(int argc, char *argv[])
         lf[i] = lineFileOpen(queryFiles[0], TRUE);
     }
 
-    if (threads > 1)
-    {
-        queryCount=0;
-        struct lineFile *tlf = lineFileOpen(queryFiles[0], TRUE);
-        while (faMixedSpeedReadNext(tlf, NULL, NULL, NULL, &faFastBuf, &faFastBufSize))
-            queryCount++;
-        lineFileClose(&tlf);
-        queryCount=queryCount/threads+1;
+    
+    queryCount=0;
+    struct lineFile *tlf = lineFileOpen(queryFiles[0], TRUE);
+    while (faMixedSpeedReadNext(tlf, NULL, NULL, NULL, &faFastBuf, &faFastBufSize))
+        queryCount++;
+    lineFileClose(&tlf);
+    queryCount=queryCount/threads+1;
 
-        for (i=1; i<threads; i++)
-        {
-            cnt=queryCount*i;
-            while (cnt-- && faMixedSpeedReadNext(lf[i], NULL, NULL, NULL, &faFastBuf, &faFastBufSize));
-        }
+    for (i=1; i<threads; i++)
+    {
+        cnt=queryCount*i;
+        while (cnt-- && faMixedSpeedReadNext(lf[i], NULL, NULL, NULL, &faFastBuf, &faFastBufSize));
     }
+    
 
 
     /* Call routine that does the work. */
     blat(argv[1], queryCount, queryFiles, lf, out);
-
+    
 
     for (i=0; i<threads; i++)
         lineFileClose(&(lf[i]));

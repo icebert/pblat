@@ -8,13 +8,13 @@
  *
  * This accesses a file of name/offset pairs that are sorted by
  * name.  Does a binary search of file to find the offset given name.
- * Most typically this is used to do a quick lookup given an index file.
- */
+ * Most typically this is used to do a quick lookup given an index file. 
+ */ 
 
 struct snof
 /* Sorted Name Offset File structure.  Get one from snofOpen.  Use
  * with snofFindOffset.  Finish up with snofClose. */
-{
+    {
     FILE *file;
     int maxNameSize;
     int itemSize;
@@ -25,7 +25,7 @@ struct snof
     char *less;
     char *mid;
     char *more;
-};
+    };
 
 struct snof *snofOpen(char *indexName);
 /* Open up the index file.  Returns NULL if there's any problem. */
@@ -51,7 +51,7 @@ void snofNameOffsetAtIx(struct snof *snof, int ix, char **pName, long *pOffset);
 /* Get both name and offset for an index. */
 
 boolean snofFindFirstStartingWith(struct snof *snof, char *prefix, int prefixSize,
-                                  int *pSnofIx);
+    int *pSnofIx);
 /* Find first index in snof file whose name begins with prefix. */
 
 boolean snofFindOffset(struct snof *snof, char *name, long *pOffset);

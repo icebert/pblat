@@ -1,5 +1,5 @@
 /* Obscure.h  - stuff that's relatively rarely used
- * but still handy.
+ * but still handy. 
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
@@ -21,6 +21,9 @@ void sprintLongWithCommas(char *s, long long l);
 
 void printLongWithCommas(FILE *f, long long l);
 /* Print out a long number with commas a thousands, millions, etc. */
+
+void sprintWithGreekByte(char *s, int slength, long long size);
+/* Numbers formatted with PB, TB, GB, MB, KB, B */
 
 void writeGulp(char *file, char *buf, int size);
 /* Write out a bunch of memory. */
@@ -63,10 +66,19 @@ size_t ptToSizet(void *pt);
 /* Convert pointer to size_t.  Use when really want to store a
  * pointer in a size_t. */
 
+boolean parseQuotedStringNoEscapes( char *in, char *out, char **retNext);
+/* Read quoted string from in (which should begin with first quote).
+ * Write unquoted string to out, which may be the same as in.
+ * Return pointer to character past end of string in *retNext. 
+ * Return FALSE if can't find end.
+ * Unlike parseQuotedString() do not treat backslash as an escape
+ *	character, merely pass it on through.
+ */
+
 boolean parseQuotedString( char *in, char *out, char **retNext);
 /* Read quoted string from in (which should begin with first quote).
  * Write unquoted string to out, which may be the same as in.
- * Return pointer to character past end of string in *retNext.
+ * Return pointer to character past end of string in *retNext. 
  * Return FALSE if can't find end. */
 
 char *nextQuotedWord(char **pLine);
@@ -81,11 +93,11 @@ char *makeQuotedString(char *in, char quoteChar);
 
 char *makeEscapedString(char *in, char toEscape);
 /* Return string that is a copy of in, but with all
- * toEscape characters preceded by '\'
+ * toEscape characters preceded by '\' 
  * When done freeMem result. */
 
 void escCopy(char *in, char *out, char toEscape, char escape);
-/* Copy in to out, escaping as needed.  Out better be big enough.
+/* Copy in to out, escaping as needed.  Out better be big enough. 
  * (Worst case is strlen(in)*2 + 1.) */
 
 struct slName *stringToSlNames(char *string);
@@ -97,7 +109,7 @@ struct slName *commaSepToSlNames(char *commaSep);
 /* Convert comma-separated list of items to slName list. */
 
 struct slName *charSepToSlNames(char *string, char c);
-/* Convert character-separated list of items to slName list.
+/* Convert character-separated list of items to slName list. 
  * Note that the last occurence of c is optional.  (That
  * is for a comma-separated list a,b,c and a,b,c, are
  * equivalent. */
@@ -106,8 +118,14 @@ struct hash *hashVarLine(char *line, int lineIx);
 /* Return a symbol table from a line of form:
  *   var1=val1 var2='quoted val2' var3="another val" */
 
+struct hash *hashThisEqThatLine(char *line, int lineIx, boolean firstStartsWithLetter);
+/* Return a symbol table from a line of form:
+ *   1-this1=val1 2-this='quoted val2' var3="another val" 
+ * If firstStartsWithLetter is true, then the left side of the equals must start with
+ * and equals. */
+
 struct hash *hashWordsInFile(char *fileName, int hashSize);
-/* Create a hash of space delimited words in file.
+/* Create a hash of space delimited words in file. 
  * hashSize is as in hashNew() - pass 0 for default. */
 
 struct hash *hashNameIntFile(char *fileName);
@@ -117,8 +135,8 @@ struct hash *hashNameIntFile(char *fileName);
 struct hash *hashTwoColumnFile(char *fileName);
 /* Given a two column file (key, value) return a hash. */
 
-void shuffleArrayOfPointers(void *pointerArray, int arraySize,
-                            int shuffleCount);
+void shuffleArrayOfPointers(void *pointerArray, int arraySize, 
+	int shuffleCount);
 /* Shuffle array of pointers of given size given number of times. */
 
 void shuffleList(void *pList, int shuffleCount);
@@ -139,4 +157,18 @@ void dotForUser();
 void spaceToUnderbar(char *s);
 /* Convert white space to underbar. */
 
+void rangeRoundUp(double start, double end, double *retStart, double *retEnd);
+/* Round start and end so that they cover a slightly bigger range, but with more round
+ * numbers.  For instance 0.23:9.89 becomes 0:10 */
+
+void rangeFromMinMaxMeanStd(double minVal, double maxVal, double mean, double std,
+	double *retStart, double *retEnd);
+/* Given some basic statistical properties, set a range that will be good on a wide
+ * range of biological data. */
+
+void printVmPeak();
+/* print to stderr peak Vm memory usage (if /proc/ business exists) */
+
+boolean nameInCommaList(char *name, char *commaList);
+/* Return TRUE if name is in comma separated list. */
 #endif /* OBSCURE_H */

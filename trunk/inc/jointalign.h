@@ -8,8 +8,8 @@
 #ifndef JOINTALIGN_H
 #define JOINTALIGN_H
 
-void htmlPrintJointAlignment( char *seq1, char *seq2, int columnNum,
-                              int start, int end, char *strand );
+void htmlPrintJointAlignment( char *seq1, char *seq2, int columnNum, 
+        int start, int end, char *strand );
 /* Print sequences 1 and 2 (assumed to be a joint alignment),
  * formatted for html output. Coordinates are printed based on
  * the start and end positions and oriented according to the

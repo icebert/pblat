@@ -13,7 +13,7 @@
 #define textOutCompressZip "zip"
 
 /* Menu and values for passing to cgiMakeDropListFull: */
-/* (not declaring the static char *[]'s here because those can lead to
+/* (not declaring the static char *[]'s here because those can lead to 
  * "variable defined but not used" warnings -- declare locally.) */
 #define textOutCompressMenuContents { "plain text",\
 				       "gzip compressed (.gz)",\
@@ -33,14 +33,14 @@
 
 
 struct pipeline *textOutInit(char *fileName, char *compressType);
-/* Set up stdout to be HTTP text, file (if fileName is specified), or
- * compressed file (if both fileName and a supported compressType are
- * specified).
- * Return NULL if no compression, otherwise a pipeline handle on which
+/* Set up stdout to be HTTP text, file (if fileName is specified), or 
+ * compressed file (if both fileName and a supported compressType are 
+ * specified). 
+ * Return NULL if no compression, otherwise a pipeline handle on which 
  * textOutClose should be called when we're done writing stdout. */
 
 void textOutClose(struct pipeline **pCompressPipeline);
-/* Flush and close stdout, wait for the pipeline to finish, and then free
+/* Flush and close stdout, wait for the pipeline to finish, and then free 
  * the pipeline object. */
 
 #endif /* TEXTOUT_H */

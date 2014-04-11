@@ -13,7 +13,7 @@ enum {contigPad = 800,};
 struct contigTree
 /* A hierarchical structure of contigs.  A forest of these is
  * maintained by the system.  (No need to free these.) */
-{
+    {
     struct contigTree  *next;    /* Sibling. */
     struct contigTree *children; /* Sub-contigs. */
     struct contigTree *parent;   /* Parent of contig. */
@@ -23,9 +23,9 @@ struct contigTree
     int orientation;   /* +1 or -1. Strand relative to parent.*/
     int corder;        /* Order of contig in genBank submission. */
     int browserOffset; /* Offset relative to parent for browser, ordered by ensemble, with
-                        * ensContigPad N's between each contig. */
+                        * ensContigPad N's between each contig. */ 
     int browserLength; /* Size including padding. */
-};
+    };
 
 #endif /* UNFIN_H */
 

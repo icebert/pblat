@@ -1,5 +1,7 @@
 /* dnaLoad - Load dna from a variaty of file formats. */
 
+/* Modified by Meng Wang. 2012-2014 */
+
 #include "common.h"
 #include "dnaseq.h"
 #include "fa.h"
@@ -7,22 +9,21 @@
 #include "nib.h"
 #include "dnaLoad.h"
 
-static char const rcsid[] = "$Id: dnaLoad.c,v 1.8 2005/03/28 17:21:28 hiram Exp $";
 
 struct dnaLoadStack
 /* Keep track of a single DNA containing file. */
-{
+    {
     struct dnaLoadStack *next;	/* Next in list. */
     struct twoBitFile *twoBit; /* Two bit file if any. */
     struct twoBitIndex *tbi;	 /* Next twoBit sequence. */
     struct lineFile *textFile;	/* Text file if any. */
     boolean textIsFa;		/* True if text is in fasta format. */
-};
+    };
 
 struct dnaLoad
 /* A structure to help us load DNA from files - mixed case
  * from either .fa, .nib, or .2bit files */
-{
+    {
     struct dnaLoad *next;	/* Next loader in list. */
     char *topFileName;		/* Highest level file name. */
     boolean finished;		/* Set to TRUE at end. */
@@ -30,67 +31,67 @@ struct dnaLoad
     int curStart;		/* Start offset within current parent sequence. */
     int curEnd;			/* End offset  within current parent sequence. */
     int curSize;		/* Size of current parent sequence. */
-};
+    };
 
 struct dnaLoadStack *dnaLoadStackNew(char *fileName)
 /* Create new dnaLoadStack on composite file. */
 {
-    struct dnaLoadStack *dls;
-    AllocVar(dls);
-    if (twoBitIsFile(fileName))
+struct dnaLoadStack *dls;
+AllocVar(dls);
+if (twoBitIsFile(fileName))
     {
-        dls->twoBit = twoBitOpen(fileName);
-        dls->tbi = dls->twoBit->indexList;
+    dls->twoBit = twoBitOpen(fileName);
+    dls->tbi = dls->twoBit->indexList;
     }
-    else
+else
     {
-        char *line;
-        dls->textFile = lineFileOpen(fileName, TRUE);
-        if (lineFileNextReal(dls->textFile, &line))
+    char *line;
+    dls->textFile = lineFileOpen(fileName, TRUE);
+    if (lineFileNextReal(dls->textFile, &line))
         {
-            line = trimSpaces(line);
-            if (line[0] == '>')
-                dls->textIsFa = TRUE;
-            lineFileReuse(dls->textFile);
-        }
+	line = trimSpaces(line);
+	if (line[0] == '>')
+	    dls->textIsFa = TRUE;
+	lineFileReuse(dls->textFile);
+	}
     }
-    return dls;
+return dls;
 }
 
 void dnaLoadStackFree(struct dnaLoadStack **pDls)
 /* free up resources associated with dnaLoadStack. */
 {
-    struct dnaLoadStack *dls = *pDls;
-    if (dls != NULL)
+struct dnaLoadStack *dls = *pDls;
+if (dls != NULL)
     {
-        lineFileClose(&dls->textFile);
-        twoBitClose(&dls->twoBit);
-        freez(pDls);
+    lineFileClose(&dls->textFile);
+    twoBitClose(&dls->twoBit);
+    freez(pDls);
     }
 }
 
 void dnaLoadStackFreeList(struct dnaLoadStack **pList)
 /* Free a list of dynamically allocated dnaLoadStack's */
 {
-    struct dnaLoadStack *el, *next;
+struct dnaLoadStack *el, *next;
 
-    for (el = *pList; el != NULL; el = next)
+for (el = *pList; el != NULL; el = next)
     {
-        next = el->next;
-        dnaLoadStackFree(&el);
+    next = el->next;
+    dnaLoadStackFree(&el);
     }
-    *pList = NULL;
+*pList = NULL;
 }
 
 void dnaLoadClose(struct dnaLoad **pDl)
 /* Free up resources associated with dnaLoad. */
 {
-    struct dnaLoad *dl = *pDl;
-    if (dl != NULL)
+struct dnaLoad *dl = *pDl;
+if (dl != NULL)
     {
-        dnaLoadStackFreeList(&dl->stack);
-        freeMem(dl->topFileName);
-        freez(pDl);
+    dnaLoadStackFreeList(&dl->stack);
+    freeMem(dl->topFileName);
+    freez(pDl);
     }
 }
 
@@ -98,64 +99,64 @@ struct dnaLoad *dnaLoadOpen(char *fileName)
 /* Return new DNA loader.  Call dnaLoadNext() on this until
  * you get a NULL return, then dnaLoadClose(). */
 {
-    struct dnaLoad *dl;
-    AllocVar(dl);
-    dl->topFileName = cloneString(fileName);
-    return dl;
+struct dnaLoad *dl;
+AllocVar(dl);
+dl->topFileName = cloneString(fileName);
+return dl;
 }
 
 struct dnaSeq *dnaLoadSingle(char *fileName, int *retStart, int *retEnd, int *retParentSize)
 /* Return sequence if it's a nib file or 2bit part, NULL otherwise. */
 {
-    struct dnaSeq *seq = NULL;
-    unsigned start = 0, end = 0;
-    int parentSize = 0;
-    if (nibIsFile(fileName))
+struct dnaSeq *seq = NULL;
+unsigned start = 0, end = 0;
+int parentSize = 0;
+if (nibIsFile(fileName))
     {
-        /* Save offset out of fileName for auto-lifting */
-        char filePath[PATH_LEN];
-        char name[PATH_LEN];
-        nibParseName(0, fileName, filePath, name, &start, &end);
+    /* Save offset out of fileName for auto-lifting */
+    char filePath[PATH_LEN];
+    char name[PATH_LEN];
+    nibParseName(0, fileName, filePath, name, &start, &end);
 
-        if (end != 0)	/* It's just a range. */
+    if (end != 0)	/* It's just a range. */
         {
-            FILE *f;
-            int size;
-            nibOpenVerify(filePath, &f, &size);
-            parentSize = size;
-        }
-        seq =  nibLoadAllMasked(NIB_MASK_MIXED, fileName);
-        if (end == 0)
-            parentSize = end = seq->size;
-        freez(&seq->name);
-        seq->name = cloneString(name);
+	FILE *f;
+	int size;
+	nibOpenVerify(filePath, &f, &size);
+	parentSize = size;
+	}
+    seq =  nibLoadAllMasked(NIB_MASK_MIXED, fileName);
+    if (end == 0)
+         parentSize = end = seq->size;
+    freez(&seq->name);
+    seq->name = cloneString(name);
     }
-    else if (twoBitIsRange(fileName))
+else if (twoBitIsRange(fileName))
     {
-        /* Save offset out of fileName for auto-lifting */
-        char *rangeSpec = cloneString(fileName);
-        int start, end;
-        char *file, *seqName;
-        twoBitParseRange(rangeSpec, &file, &seqName, &start, &end);
+    /* Save offset out of fileName for auto-lifting */
+    char *rangeSpec = cloneString(fileName);
+    int start, end;
+    char *file, *seqName;
+    twoBitParseRange(rangeSpec, &file, &seqName, &start, &end);
 
-        /* Load sequence. */
+    /* Load sequence. */
         {
-            struct twoBitFile *tbf = twoBitOpen(file);
-            parentSize = twoBitSeqSize(tbf, seqName);
-            seq = twoBitReadSeqFrag(tbf, seqName, start, end);
-            twoBitClose(&tbf);
-        }
-        if (end == 0)
-            end = seq->size;
-        freez(&rangeSpec);
+	struct twoBitFile *tbf = twoBitOpen(file);
+	parentSize = twoBitSeqSize(tbf, seqName);
+	seq = twoBitReadSeqFrag(tbf, seqName, start, end);
+	twoBitClose(&tbf);
+	}
+    if (end == 0)
+        end = seq->size;
+    freez(&rangeSpec);
     }
-    if (retStart != NULL)
-        *retStart = start;
-    if (retEnd != NULL)
-        *retEnd = end;
-    if (retParentSize != NULL)
-        *retParentSize = parentSize;
-    return seq;
+if (retStart != NULL)
+    *retStart = start;
+if (retEnd != NULL)
+    *retEnd = end;
+if (retParentSize != NULL)
+    *retParentSize = parentSize;
+return seq;
 }
 
 static struct dnaSeq *dnaLoadNextFromStack(struct dnaLoad *dl)
@@ -235,28 +236,28 @@ static struct dnaSeq *dnaLoadNextFromStack(struct dnaLoad *dl)
 static struct dnaSeq *dnaLoadStackOrSingle(struct dnaLoad *dl)
 /* Return next dna sequence. */
 {
-    struct dnaSeq *seq = NULL;
-    if (dl->finished)
-        return NULL;
-    if (dl->stack == NULL)
+struct dnaSeq *seq = NULL;
+if (dl->finished)
+    return NULL;
+if (dl->stack == NULL)
     {
-        if ((seq = dnaLoadSingle(dl->topFileName, &dl->curStart, &dl->curEnd, &dl->curSize)) != NULL)
-        {
-            dl->finished = TRUE;
-            return seq;
-        }
-        dl->stack = dnaLoadStackNew(dl->topFileName);
+    if ((seq = dnaLoadSingle(dl->topFileName, &dl->curStart, &dl->curEnd, &dl->curSize)) != NULL)
+	{
+	dl->finished = TRUE;
+	return seq;
+	}
+    dl->stack = dnaLoadStackNew(dl->topFileName);
     }
-    return dnaLoadNextFromStack(dl);
+return dnaLoadNextFromStack(dl);
 }
 
 struct dnaSeq *dnaLoadNext(struct dnaLoad *dl)
 /* Return next dna sequence. */
 {
-    struct dnaSeq *seq;
-    dl->curSize = dl->curStart = dl->curEnd = 0;
-    seq = dnaLoadStackOrSingle(dl);
-    return seq;
+struct dnaSeq *seq;
+dl->curSize = dl->curStart = dl->curEnd = 0;
+seq = dnaLoadStackOrSingle(dl);
+return seq;
 }
 
 struct dnaSeq *dnaLoadAll(char *fileName)
@@ -265,15 +266,15 @@ struct dnaSeq *dnaLoadAll(char *fileName)
  * file, a .nib file, or a text file containing
  * a list of the above files. DNA is mixed case. */
 {
-    struct dnaLoad *dl = dnaLoadOpen(fileName);
-    struct dnaSeq *seqList = NULL, *seq;
-    while ((seq = dnaLoadNext(dl)) != NULL)
+struct dnaLoad *dl = dnaLoadOpen(fileName);
+struct dnaSeq *seqList = NULL, *seq;
+while ((seq = dnaLoadNext(dl)) != NULL)
     {
-        slAddHead(&seqList, seq);
+    slAddHead(&seqList, seq);
     }
-    dnaLoadClose(&dl);
-    slReverse(seqList);
-    return seqList;
+dnaLoadClose(&dl);
+slReverse(&seqList);
+return seqList;
 }
 
 int dnaLoadCurStart(struct dnaLoad *dl)
@@ -282,7 +283,7 @@ int dnaLoadCurStart(struct dnaLoad *dl)
  * nib and 2bit fragments.  Please call only after a
  * sucessful dnaLoadNext. */
 {
-    return dl->curStart;
+return dl->curStart;
 }
 
 int dnaLoadCurEnd(struct dnaLoad *dl)
@@ -291,13 +292,13 @@ int dnaLoadCurEnd(struct dnaLoad *dl)
  * nib and 2bit fragments.  Please call only after a
  * sucessful dnaLoadNext. */
 {
-    return dl->curEnd;
+return dl->curEnd;
 }
 
 int dnaLoadCurSize(struct dnaLoad *dl)
 /* Returns the size of the parent sequence.  Useful for
  * auto-lift programs.  Please call only after dnaLoadNext. */
 {
-    return dl->curSize;
+return dl->curSize;
 }
 

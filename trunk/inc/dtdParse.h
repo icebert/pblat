@@ -7,7 +7,7 @@
 
 struct dtdElement
 /* An element in an XML file. */
-{
+    {
     struct dtdElement *next;	/* Next in list. */
     char *name;			/* Element Name. */
     char *mixedCaseName;	/* Name converted from EL_NAME or el-name to elName. */
@@ -15,31 +15,31 @@ struct dtdElement
     struct dtdAttribute *attributes; /* Attributes. */
     int lineIx;			/* Line where element occurs in dtd file. */
     char *textType;		/* Text between tags if any. */
-};
+    };
 
 struct dtdElChild
 /* A reference to a child element. */
-{
-    struct dtdElChild *next;	/* Next in list. */
-    char *name;			/* Name of element. */
-    char copyCode;		/* '1', '+', '?', or '*' */
-    boolean isOr;                /* Is this part of a ( n | m ) "or" list? */
-    struct dtdElement *el;	/* Element definition. */
-};
+   {
+   struct dtdElChild *next;	/* Next in list. */
+   char *name;			/* Name of element. */
+   char copyCode;		/* '1', '+', '?', or '*' */
+   boolean isOr;                /* Is this part of a ( n | m ) "or" list? */
+   struct dtdElement *el;	/* Element definition. */
+   };
 
 struct dtdAttribute
 /* An attribute of some sort. */
-{
+    {
     struct dtdAttribute *next;	/* Next in list. */
     char *name;			/* Name of attribute. */
     char *mixedCaseName;	/* Name converted from EL_NAME or el-name to elName. */
     char *type;			/* Element type - CDATA, INT, FLOAT, etc. */
     boolean required;		/* True if required. */
     char *usual;		/* Default value (or NULL if none) */
-};
+    };
 
 void dtdParse(char *fileName, char *prefix, char *textField,
-              struct dtdElement **retList, struct hash **retHash);
+	struct dtdElement **retList, struct hash **retHash);
 /* Parse out a dtd file into elements that are returned in retList,
  * and for your convenience also in retHash (which is keyed by the
  * name of the element.  Note that XML element names can include the '-'

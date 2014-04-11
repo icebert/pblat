@@ -9,7 +9,7 @@
  * we support.  During run time looking at the environment variable
  * SERVER_SOFTWARE we decide which of these to use. */
 struct webServerSpecific
-{
+    {
     char *name;
 
     /* Make a good name for a temp file. */
@@ -22,18 +22,18 @@ struct webServerSpecific
     /* Return cgi suffix. */
     char * (*cgiSuffix)();
 #endif /* NEVER */
-
+    
     /* Return relative speed of CPU. (UCSC CSE 1999 FTP machine is 1.0) */
     double (*speed)();
 
     /* The relative path to trash directory for CGI binaries */
     char * (*trashDir)();
 
-};
+    };
 
 
 extern struct webServerSpecific wssMicrosoftII, wssMicrosoftPWS, wssDefault,
-        wssLinux, wssCommandLine, wssBrcMcw;
+	wssLinux, wssCommandLine, wssBrcMcw;
 
 char *rTempName(char *dir, char *base, char *suffix);
 /* Make a temp name that's almost certainly unique. */
