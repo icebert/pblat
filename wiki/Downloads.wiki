@@ -1,8 +1,8 @@
 ==Source==
 ||FileName||Description||ReleaseDate||Size||MD5||
-||[https://www.dropbox.com/s/q2jxt39oe3wmvq9/pblat_1.2.tar.gz pblat_1.2.tar.gz]||latest stable||April 2014||625.84KB||0d541aff8a83ff7e3626c346b463bcd4||
-||[https://www.dropbox.com/s/kh2q19uv9ivtltj/pblat_1.1.tar.gz pblat_1.1.tar.gz]||(Deprecated)||March 2014||639.89KB||0a2c3f1b7ed1b7dba7d74df5be33310f||
-||[https://www.dropbox.com/s/oev67u91mtigk0d/pblat_1.0.tar.gz pblat_1.0.tar.gz]||(Deprecated)||May 2012||622.98KB||abcfed5f6330a13416b02f6967812027||
+||[https://drive.google.com/file/d/0BxkATBoZN5zBVWNlenQ4QnBnRVU/edit?usp=sharing pblat_1.2.tar.gz]||latest stable||April 2014||915KB||0d541aff8a83ff7e3626c346b463bcd4||
+||[https://www.dropbox.com/s/kh2q19uv9ivtltj/pblat_1.1.tar.gz pblat_1.1.tar.gz]||(Deprecated)||March 2014||640KB||0a2c3f1b7ed1b7dba7d74df5be33310f||
+||[https://www.dropbox.com/s/oev67u91mtigk0d/pblat_1.0.tar.gz pblat_1.0.tar.gz]||(Deprecated)||May 2012||623KB||abcfed5f6330a13416b02f6967812027||
 
 <br/><br/>
 
