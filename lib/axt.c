@@ -420,40 +420,45 @@ for (i1=0; i1<=1; ++i1)
        }
 }
 
+
+/* Modified by Meng Wang. 2014-12-18 */
 struct axtScoreScheme *axtScoreSchemeDefault()
 /* Return default scoring scheme (after blastz).  Do NOT axtScoreSchemeFree
  * this. */
 {
 static struct axtScoreScheme *ss;
+struct axtScoreScheme *tt;
 
 if (ss != NULL)
     return ss;
-AllocVar(ss);
+AllocVar(tt);
 
 /* Set up lower case elements of matrix. */
-ss->matrix['a']['a'] = 91;
-ss->matrix['a']['c'] = -114;
-ss->matrix['a']['g'] = -31;
-ss->matrix['a']['t'] = -123;
+tt->matrix['a']['a'] = 91;
+tt->matrix['a']['c'] = -114;
+tt->matrix['a']['g'] = -31;
+tt->matrix['a']['t'] = -123;
 
-ss->matrix['c']['a'] = -114;
-ss->matrix['c']['c'] = 100;
-ss->matrix['c']['g'] = -125;
-ss->matrix['c']['t'] = -31;
+tt->matrix['c']['a'] = -114;
+tt->matrix['c']['c'] = 100;
+tt->matrix['c']['g'] = -125;
+tt->matrix['c']['t'] = -31;
 
-ss->matrix['g']['a'] = -31;
-ss->matrix['g']['c'] = -125;
-ss->matrix['g']['g'] = 100;
-ss->matrix['g']['t'] = -114;
+tt->matrix['g']['a'] = -31;
+tt->matrix['g']['c'] = -125;
+tt->matrix['g']['g'] = 100;
+tt->matrix['g']['t'] = -114;
 
-ss->matrix['t']['a'] = -123;
-ss->matrix['t']['c'] = -31;
-ss->matrix['t']['g'] = -114;
-ss->matrix['t']['t'] = 91;
+tt->matrix['t']['a'] = -123;
+tt->matrix['t']['c'] = -31;
+tt->matrix['t']['g'] = -114;
+tt->matrix['t']['t'] = 91;
 
-propagateCase(ss);
-ss->gapOpen = 400;
-ss->gapExtend = 30;
+propagateCase(tt);
+tt->gapOpen = 400;
+tt->gapExtend = 30;
+
+ss = tt;
 return ss;
 }
 
@@ -585,6 +590,8 @@ static void badProteinMatrixLine(int lineIx, char *fileName)
 errAbort("Expecting letter and 25 numbers line %d of %s", lineIx, fileName);
 }
 
+
+/* Modified by Meng Wang. 2014-12-18 */
 struct axtScoreScheme *axtScoreSchemeFromProteinText(char *text, char *fileName)
 /* Parse text into a scoring scheme.  This should be in BLAST protein matrix
  * format as in blosumText above. */
@@ -594,11 +601,17 @@ int lineIx = 0;
 int realCount = 0;
 char columns[24];
 char *row[25];
+char *txt;
 int i;
-struct axtScoreScheme *ss;
+static struct axtScoreScheme *ss;
+struct axtScoreScheme *tt;
 
-AllocVar(ss);
-for (line = text; line != NULL; line = nextLine)
+if (ss != NULL)
+    return ss;
+
+AllocVar(tt);
+txt = cloneString(text);
+for (line = txt; line != NULL; line = nextLine)
     {
     nextLine = strchr(line, '\n');
     if (nextLine != NULL)
@@ -642,32 +655,38 @@ for (line = text; line != NULL; line = nextLine)
 	    otherLetter = columns[i-1];
 	    lcOtherLetter = tolower(otherLetter);
 	    val = atoi(row[i]);
-	    ss->matrix[(int)letter][(int)otherLetter] = val;
-	    ss->matrix[(int)lcLetter][(int)otherLetter] = val;
-	    ss->matrix[(int)letter][(int)lcOtherLetter] = val;
-	    ss->matrix[(int)lcLetter][(int)lcOtherLetter] = val;
+	    tt->matrix[(int)letter][(int)otherLetter] = val;
+	    tt->matrix[(int)lcLetter][(int)otherLetter] = val;
+	    tt->matrix[(int)letter][(int)lcOtherLetter] = val;
+	    tt->matrix[(int)lcLetter][(int)lcOtherLetter] = val;
 	    }
 	}
     }
+freeMem(txt);
 if (realCount < 25)
     errAbort("Unexpected end of %s", fileName);
+ss = tt;
 return ss;
 }
 
+
+/* Modified by Meng Wang. 2014-12-18 */
 struct axtScoreScheme *axtScoreSchemeProteinDefault()
 /* Returns default protein scoring scheme.  This is
  * scaled to be compatible with the blastz one. */
 {
 static struct axtScoreScheme *ss;
+struct axtScoreScheme *tt;
 int i,j;
 if (ss != NULL)
     return ss;
-ss = axtScoreSchemeFromProteinText(blosumText, "blosum62");
+tt = axtScoreSchemeFromProteinText(blosumText, "blosum62");
 for (i=0; i<128; ++i)
     for (j=0; j<128; ++j)
-        ss->matrix[i][j] *= 19;
-ss->gapOpen = 11 * 19;
-ss->gapExtend = 1 * 19;
+        tt->matrix[i][j] *= 19;
+tt->gapOpen = 11 * 19;
+tt->gapExtend = 1 * 19;
+ss = tt;
 return ss;
 }
 
