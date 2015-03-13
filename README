@@ -20,7 +20,7 @@ will locate in the same directory. Then it can be moved to where you want.
 
 
 ################
-    Run
+     Run
 ################
 To run with multiple threads, add option "-threads=<number of threads>" in the
 command line.
