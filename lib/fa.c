@@ -3,7 +3,7 @@
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
 
-/* Modified by Meng Wang. 2012-2014 */
+/* Modified by Meng Wang. 2012-2015 */
 
 #include "common.h"
 #include "errabort.h"
@@ -335,6 +335,7 @@ freez(&faFastBuf);
 faFastBufSize = 0;
 }
 
+
 boolean faFastReadNext(FILE *f, DNA **retDna, int *retSize, char **retName)
 /* Read in next FA entry as fast as we can. Return FALSE at EOF. 
  * The returned DNA and name will be overwritten by the next call
@@ -388,7 +389,7 @@ boolean faFastReadNext(FILE *f, DNA **retDna, int *retSize, char **retName)
             if (c == 0) c = 'n';
         }
         if (bufIx >= faFastBufSize)
-        expandFaFastBuf(bufIx, 0, faFastBuf, faFastBufSize);
+        expandFaFastBuf(bufIx, 0, &faFastBuf, &faFastBufSize);
         faFastBuf[bufIx++] = c;
         if (c == 0)
         {

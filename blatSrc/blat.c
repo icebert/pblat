@@ -923,14 +923,16 @@ int main(int argc, char *argv[])
     struct lineFile *tlf = lineFileOpen(queryFiles[0], TRUE);
     while (faMixedSpeedReadNext(tlf, NULL, NULL, NULL, &faFastBuf, &faFastBufSize))
         queryCount++;
-    lineFileClose(&tlf);
     queryCount=queryCount/threads+1;
-
+    
+    lineFileRewind(tlf);
     for (i=1; i<threads; i++)
     {
-        cnt=queryCount*i;
-        while (cnt-- && faMixedSpeedReadNext(lf[i], NULL, NULL, NULL, &faFastBuf, &faFastBufSize));
+        cnt=queryCount;
+        while (cnt-- && faMixedSpeedReadNext(tlf, NULL, NULL, NULL, &faFastBuf, &faFastBufSize));
+        lineFileSeek(lf[i], tlf->bufOffsetInFile + tlf->lineStart, SEEK_SET);
     }
+    lineFileClose(&tlf);
     
 
 
