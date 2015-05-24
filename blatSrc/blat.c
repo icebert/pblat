@@ -408,6 +408,7 @@ void* performSearch(void* args)
                                   maskHash, &totalSize, &count, gvo);
             }
             free(seq.name);
+            faFreeFastBuf(&faFastBuf, &faFastBufSize);
         }
     }
     if (showStatus)
@@ -562,6 +563,7 @@ void* performBigblat(void* args)
             gfOutputQuery(gvo, out);
         }
         free(qSeq.name);
+        faFreeFastBuf(&faFastBuf, &faFastBufSize);
     }
 }
 
@@ -933,6 +935,7 @@ int main(int argc, char *argv[])
         lineFileSeek(lf[i], tlf->bufOffsetInFile + tlf->lineStart, SEEK_SET);
     }
     lineFileClose(&tlf);
+    faFreeFastBuf(&faFastBuf, &faFastBufSize);
     
 
 

@@ -1992,6 +1992,11 @@ int oocCount = 0;
 char *inName;
 FILE *f = mustOpen(outName, "w");
 
+
+unsigned faFastBufSize = 0;
+DNA     *faFastBuf;
+
+
 if (gf->segSize > 0)
     errAbort("Don't yet know how to make ooc files for large tile sizes.");
 for (i=0; i<fileCount; ++i)
@@ -2010,7 +2015,8 @@ for (i=0; i<fileCount; ++i)
 	}
     else
         {
-	seqList = faReadAllSeq(inName, tType != gftProt);
+	seqList = faReadAllSeq(inName, tType != gftProt, &faFastBuf, &faFastBufSize);
+    faFreeFastBuf(&faFastBuf, &faFastBufSize);
 	}
     printf("Counting %s\n", inName);
     for (seq = seqList; seq != NULL; seq = seq->next)

@@ -3,7 +3,7 @@
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
 
-/* Modified by Meng Wang. 2012-2014 */
+/* Modified by Meng Wang. 2012-2015 */
 
 #ifndef FA_H
 #define FA_H
@@ -25,22 +25,22 @@ aaSeq *faReadAa(char *fileName);
 bioSeq *faReadSeq(char *fileName, boolean isDna);
 /* Read a dna or protein sequence. */
 
-struct dnaSeq *faReadAllDna(char *fileName);
+struct dnaSeq *faReadAllDna(char *fileName, DNA **faFastBuf, unsigned *faFastBufSize);
 /* Return list of all DNA sequences in FA file. */
 
-struct dnaSeq *faReadAllPep(char *fileName);
+struct dnaSeq *faReadAllPep(char *fileName, DNA **faFastBuf, unsigned *faFastBufSize);
 /* Return list of all Peptide sequences in FA file. */
 
-struct dnaSeq *faReadAllSeq(char *fileName, boolean isDna);
+struct dnaSeq *faReadAllSeq(char *fileName, boolean isDna, DNA **faFastBuf, unsigned *faFastBufSize);
 /* Return list of all sequences in FA file. */
 
-struct dnaSeq *faReadAllMixed(char *fileName);
+struct dnaSeq *faReadAllMixed(char *fileName, DNA **faFastBuf, unsigned *faFastBufSize);
 /* Read in mixed case fasta file, preserving case. */
 
-struct hash *faReadAllIntoHash(char *fileName, enum dnaCase dnaCase);
+struct hash *faReadAllIntoHash(char *fileName, enum dnaCase dnaCase, DNA **faFastBuf, unsigned *faFastBufSize);
 /* Return hash of all sequences in FA file.  */
 
-struct dnaSeq *faReadAllMixedInLf(struct lineFile *lf);
+struct dnaSeq *faReadAllMixedInLf(struct lineFile *lf, DNA **faFastBuf, unsigned *faFastBufSize);
 /* Read in mixed case sequence from open fasta file. */
 
 struct dnaSeq *faReadOneDnaSeq(FILE *f, char *name, boolean mustStartWithSign);
@@ -85,21 +85,25 @@ bioSeq *faSeqListFromMemTextRaw(char *text);
 /* Convert fa's in memory into list of dnaSeqs without
  * converting chars to N's. */
 
-boolean faFastReadNext(FILE *f, DNA **retDna, int *retSize, char **retName);
+boolean faFastReadNext(FILE *f, DNA **retDna, int *retSize, char **retName,
+                       DNA **faFastBuf, unsigned *faFastBufSize);
 /* Read in next FA entry as fast as we can. Return FALSE at EOF. 
  * The returned DNA and name will be overwritten by the next call
  * to this function. */
 
-boolean faSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName);
+boolean faSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName,
+                        DNA **faFastBuf, unsigned *faFastBufSize);
 /* Read in next FA entry as fast as we can. Faster than that old,
  * pokey faFastReadNext. Return FALSE at EOF. 
  * The returned DNA and name will be overwritten by the next call
  * to this function. */
 
-boolean faPepSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName);
+boolean faPepSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName,
+                           DNA **faFastBuf, unsigned *faFastBufSize);
 /* Read in next peptide FA entry as fast as we can.  */
 
-boolean faSomeSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName, boolean isDna);
+boolean faSomeSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName, boolean isDna,
+                            DNA **faFastBuf, unsigned *faFastBufSize);
 /* Read in DNA or Peptide FA record. */
 
 boolean faMixedSpeedReadNext(struct lineFile *lf, DNA **retDna, int *retSize, char **retName, DNA **faFastBuf, unsigned *faFastBufSize);
@@ -116,7 +120,7 @@ void faToDna(char *poly, int size);
  * any strange characters to 'n'.  Does not change size.
  * of sequence. */
 
-void faFreeFastBuf();
+void faFreeFastBuf(DNA **faFastBuf, unsigned *faFastBufSize);
 /* Free up buffers used in fa fast and speedreading. */
 
 void faWrite(char *fileName, char *startLine, DNA *dna, int dnaSize);

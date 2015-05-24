@@ -2,6 +2,9 @@
  * genoFind use. */
 /* Copyright 2001-2005 Jim Kent.  All rights reserved. */
 
+/* Modified by Meng Wang. 2012-2015 */
+
+
 #include "common.h"
 #include "hash.h"
 #include "linefile.h"
@@ -173,6 +176,9 @@ char *fileName;
 bioSeq *seqList = NULL, *seq;
 boolean doMask = (maskType != NULL);
 
+unsigned faFastBufSize = 0;
+DNA     *faFastBuf;
+
 for (i=0; i<fileCount; ++i)
     {
     struct dnaSeq *list = NULL, sseq;
@@ -183,9 +189,11 @@ for (i=0; i<fileCount; ++i)
     else if (twoBitIsSpec(fileName))
 	list = twoBitLoadAll(fileName);
     else if (isProt)
-      list = faReadAllPep(fileName);
+      list = faReadAllPep(fileName, &faFastBuf, &faFastBufSize);
     else
-      list = faReadAllMixed(fileName);
+      list = faReadAllMixed(fileName, &faFastBuf, &faFastBufSize);
+    faFreeFastBuf(&faFastBuf, &faFastBufSize);
+    
 
     /* If necessary mask sequence from file. */
     if (doMask)
