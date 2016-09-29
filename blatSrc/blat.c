@@ -904,16 +904,11 @@ int main(int argc, char *argv[])
     if (threads > 1 && (argv[3]==NULL || strcmp(argv[3],"")==0 || strcmp(argv[3], "stdin")==0))
         errAbort("Output name must be specified when using multi-threads");
 
-    out=(FILE**)malloc(sizeof(FILE*) * threads);
-    out[0]=mustOpen(argv[3], "w");
-    for (i=1; i<threads; i++)
-    {
-        sprintf(buf, "%s.tmp.%d", argv[3], i);
-        out[i] = mustOpen(buf, "w+");
-    }
-
 
     gfClientFileArray(argv[2], &queryFiles, &queryCount);
+    if (queryCount > 1)
+        errAbort("pblat does not support using list of file names as query. Please query each of the input files separately".);
+
     lf=(struct lineFile **)malloc(sizeof(struct lineFile *) * threads);
     for (i=0; i<threads; i++)
     {
@@ -936,6 +931,15 @@ int main(int argc, char *argv[])
     }
     lineFileClose(&tlf);
     faFreeFastBuf(&faFastBuf, &faFastBufSize);
+
+
+    out=(FILE**)malloc(sizeof(FILE*) * threads);
+    out[0]=mustOpen(argv[3], "w");
+    for (i=1; i<threads; i++)
+    {
+        sprintf(buf, "%s.tmp.%d", argv[3], i);
+        out[i] = mustOpen(buf, "w+");
+    }
     
 
 
