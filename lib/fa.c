@@ -342,7 +342,7 @@ boolean faFastReadNext(FILE *f, DNA **retDna, int *retSize, char **retName, DNA 
 {
     int c;
     int bufIx = 0;
-    static char name[256];
+    char name[256];
     int nameIx = 0;
     boolean gotSpace = FALSE;
 
@@ -385,14 +385,14 @@ boolean faFastReadNext(FILE *f, DNA **retDna, int *retSize, char **retName, DNA 
             c = ntChars[c];
             if (c == 0) c = 'n';
         }
-        if (bufIx >= faFastBufSize)
-        expandFaFastBuf(bufIx, 0, faFastBuf, faFastBufSize);
-        *faFastBuf[bufIx++] = c;
+        if (bufIx >= *faFastBufSize)
+            expandFaFastBuf(bufIx, 0, faFastBuf, faFastBufSize);
+        (*faFastBuf)[bufIx++] = c;
         if (c == 0)
         {
-            *retDna = faFastBuf;
-            *retSize = bufIx-1;
-            *retName = name;
+            if (retDna!=NULL) *retDna = *faFastBuf;
+            if (retSize!=NULL) *retSize = bufIx-1;
+            if (retName!=NULL) strcpy(*retName, name);
             return TRUE;
         }
     }
@@ -592,6 +592,7 @@ static struct dnaSeq *faReadAllMixableInLf(struct lineFile *lf,
         slAddHead(&seqList, seq);
     }
     slReverse(&seqList);
+    faFreeFastBuf(faFastBuf, faFastBufSize);
     return seqList;
 }
 
