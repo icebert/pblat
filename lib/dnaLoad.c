@@ -187,7 +187,7 @@ static struct dnaSeq *dnaLoadNextFromStack(struct dnaLoad *dl)
             char name[512];
             int size;
             unsigned faFastBufSize = 0;
-            DNA *faFastBuf;
+            DNA *faFastBuf = NULL;
             if (faMixedSpeedReadNext(dls->textFile, &dna, &size, &name, &faFastBuf, &faFastBufSize))
             {
                 AllocVar(seq);
@@ -206,6 +206,7 @@ static struct dnaSeq *dnaLoadNextFromStack(struct dnaLoad *dl)
                 dl->stack = dls->next;
                 dnaLoadStackFree(&dls);
             }
+            faFreeFastBuf(&faFastBuf, &faFastBufSize);
         }
         else	/* It's a file full of file names. */
         {

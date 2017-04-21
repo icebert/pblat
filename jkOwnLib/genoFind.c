@@ -1994,7 +1994,7 @@ FILE *f = mustOpen(outName, "w");
 
 
 unsigned faFastBufSize = 0;
-DNA     *faFastBuf;
+DNA     *faFastBuf = NULL;
 
 
 if (gf->segSize > 0)

@@ -345,7 +345,7 @@ void* performSearch(void* args)
     long long   totalSize = 0;
 
     unsigned faFastBufSize = 0;
-    DNA *faFastBuf;
+    DNA *faFastBuf = NULL;
 
 
     if (id==0)
@@ -528,7 +528,7 @@ void* performBigblat(void* args)
     struct dnaSeq   trimmedSeq;
 
     unsigned        faFastBufSize = 0;
-    DNA             *faFastBuf;
+    DNA             *faFastBuf = NULL;
 
     ZeroVar(&trimmedSeq);
 //for (i=0; i<queryCount; ++i)
@@ -782,7 +782,7 @@ int main(int argc, char *argv[])
     int  i, cnt, tmp;
 
     unsigned faFastBufSize = 0;
-    DNA      *faFastBuf;
+    DNA      *faFastBuf = NULL;
 
 #ifdef DEBUG
     {

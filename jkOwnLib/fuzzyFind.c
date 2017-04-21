@@ -513,12 +513,12 @@ for (i = 0; i<=endIx; ++i)
     {
     if (firstC == hay[i])
         {
-	if (memcmp(restOfNeedle, hay+i+1, restSize) == 0)
-	    {
-	    *hOffset = i;
-	    return TRUE;
-	    }
-	}
+    if (memcmp(restOfNeedle, hay+i+1, restSize) == 0)
+        {
+        *hOffset = i;
+        return TRUE;
+        }
+    }
     }
 *hOffset = -1;
 return FALSE;
@@ -626,10 +626,10 @@ while (nEnd < needleEnd && hEnd < hayEnd)
     n = *nEnd;
     h = *hEnd;
     if ((n == h) || 
-    	(n == 'n' && 
-    	(extendThroughN || nEnd + 3 >= needleEnd || nEnd[1] != 'n' || nEnd[2] != 'n' || nEnd[3] != 'n')) ||
-	(h == 'n' && 
-	(extendThroughN || hEnd + 3 >= hayEnd || hEnd[1] != 'n' || hEnd[2] != 'n' || hEnd[3] != 'n')))
+        (n == 'n' && 
+        (extendThroughN || nEnd + 3 >= needleEnd || nEnd[1] != 'n' || nEnd[2] != 'n' || nEnd[3] != 'n')) ||
+    (h == 'n' && 
+    (extendThroughN || hEnd + 3 >= hayEnd || hEnd[1] != 'n' || hEnd[2] != 'n' || hEnd[3] != 'n')))
         {
         nEnd += 1;
         hEnd += 1;
@@ -656,8 +656,8 @@ while (nStart >= needleStart && hStart >= hayStart)
     n = *nStart;
     h = *hStart;
     if ((n == h) ||
-	(n == 'n' && (extendThroughN || nStart - 3 < needleStart || nStart[-1] != 'n' || nStart[-2] != 'n' || nStart[-3] != 'n')) ||
-	(h == 'n' && (extendThroughN || hStart - 3 < hayStart || hStart[-1] != 'n' || hStart[-2] != 'n' || hStart[-3] != 'n')))
+    (n == 'n' && (extendThroughN || nStart - 3 < needleStart || nStart[-1] != 'n' || nStart[-2] != 'n' || nStart[-3] != 'n')) ||
+    (h == 'n' && (extendThroughN || hStart - 3 < hayStart || hStart[-1] != 'n' || hStart[-2] != 'n' || hStart[-3] != 'n')))
         {
         nStart -= 1;
         hStart -= 1;
@@ -1072,9 +1072,9 @@ for (;;)
         break;
     if (left->hStart > right->hStart)
         {
-	right->hStart = right->hEnd = left->hEnd;
-	right->nStart = right->nEnd = left->nEnd;
-	gotThrowback = TRUE;
+    right->hStart = right->hEnd = left->hEnd;
+    right->nStart = right->nEnd = left->nEnd;
+    gotThrowback = TRUE;
         }
     }
 if (gotThrowback)
@@ -1354,9 +1354,9 @@ static struct ffAli *findWovenTiles(DNA *ns, DNA *ne, DNA *hs, DNA *he, enum ffS
     
     /* This set of variables is set before calling the recursive tile finders - the
      * below two routines. */
-    double  rwFreq[4];
-    boolean rwIsCdna;
-    boolean rwCheckGoodEnough;
+    double  rwFreq[4] = {0, 0, 0, 0};
+    boolean rwIsCdna = FALSE;
+    boolean rwCheckGoodEnough = FALSE;
     
     /* exact  cDNA        tight    loose */
     if (needleSize < 2 || haySize < 2)  /* Be serious man! */

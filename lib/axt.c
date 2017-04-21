@@ -65,7 +65,7 @@ if (wordCount <= 0)
 if (wordCount < 8)
     {
     errAbort("Expecting at least 8 words line %d of %s got %d\n", lf->lineIx, lf->fileName,
-    	wordCount);
+        wordCount);
     }
 AllocVar(axt);
 
@@ -85,7 +85,7 @@ axt->tSym = cloneMem(line, symCount+1);
 lineFileNeedNext(lf, &line, NULL);
 if (strlen(line) != symCount)
     errAbort("Symbol count %d != %d inconsistent between sequences line %d and prev line of %s",
-    	symCount, (int)strlen(line), lf->lineIx, lf->fileName);
+        symCount, (int)strlen(line), lf->lineIx, lf->fileName);
 axt->qSym = cloneMem(line, symCount+1);
 lineFileNext(lf, &line, NULL);	/* Skip blank line */
 return axt;
@@ -103,8 +103,8 @@ void axtWrite(struct axt *axt, FILE *f)
 {
 static int ix = 0;
 fprintf(f, "%d %s %d %d %s %d %d %c",
-	ix++, axt->tName, axt->tStart+1, axt->tEnd, 
-	axt->qName, axt->qStart+1, axt->qEnd, axt->qStrand);
+    ix++, axt->tName, axt->tStart+1, axt->tEnd, 
+    axt->qName, axt->qStart+1, axt->qEnd, axt->qStrand);
 fprintf(f, " %d", axt->score);
 fputc('\n', f);
 mustWrite(f, axt->tSym, axt->symCount);
@@ -114,9 +114,9 @@ fputc('\n', f);
 fputc('\n', f);
 if ((strlen(axt->tSym) != strlen(axt->qSym)) || (axt->symCount > strlen(axt->tSym)))
     fprintf(stderr,"Symbol count %d != %d || %d > %d inconsistent in %s in "
-	    "record %d.\n",
-	    (int)strlen(axt->qSym), (int)strlen(axt->tSym), axt->symCount,
-	    (int)strlen(axt->tSym), axt->qName, ix);
+        "record %d.\n",
+        (int)strlen(axt->qSym), (int)strlen(axt->tSym), axt->symCount,
+        (int)strlen(axt->tSym), axt->qName, ix);
 }
 
 int axtCmpQuery(const void *va, const void *vb)
@@ -171,13 +171,13 @@ int qSize = countNonDash(axt->qSym, axt->symCount);
 if (tSize != axt->tEnd - axt->tStart)
     {
     warn("%d non-dashes, but %d bases to cover at line %d of %s", 
-    	tSize, axt->tEnd - axt->tStart, lf->lineIx, lf->fileName);
+        tSize, axt->tEnd - axt->tStart, lf->lineIx, lf->fileName);
     return FALSE;
     }
 if (qSize != axt->qEnd - axt->qStart)
     {
     warn("%d non-dashes, but %d bases to cover at line %d of %s", 
-    	tSize, axt->qEnd - axt->qStart, lf->lineIx, lf->fileName);
+        tSize, axt->qEnd - axt->qStart, lf->lineIx, lf->fileName);
     return FALSE;
     }
 return TRUE;
@@ -210,20 +210,20 @@ for (i=0; i<symCount; ++i)
     t = tSym[i];
     if (q == '-' || t == '-')
         {
-	if (lastGap)
-	    score -= gapExt;
-	else
-	    {
-	    /* Use gapStart+gapExt to be consistent with blastz: */
-	    score -= (gapStart + gapExt);
-	    lastGap = TRUE;
-	    }
-	}
+    if (lastGap)
+        score -= gapExt;
     else
         {
-	score += ss->matrix[(int)q][(int)t];
-	lastGap = FALSE;
-	}
+        /* Use gapStart+gapExt to be consistent with blastz: */
+        score -= (gapStart + gapExt);
+        lastGap = TRUE;
+        }
+    }
+    else
+        {
+    score += ss->matrix[(int)q][(int)t];
+    lastGap = FALSE;
+    }
     }
 return score;
 }
@@ -258,20 +258,20 @@ for (i=0; i<symCount; ++i)
     t = tSym[i];
     if ((q == '-' || t == '-') && gapNotMasked(q,t))
         {
-	if (lastGap)
-	    score -= gapExt;
-	else
-	    {
-	    /* Use gapStart+gapExt to be consistent with blastz: */
-	    score -= (gapStart + gapExt);
-	    lastGap = TRUE;
-	    }
-	}
+    if (lastGap)
+        score -= gapExt;
     else
         {
-	score += ss->matrix[(int)q][(int)t];
-	lastGap = FALSE;
-	}
+        /* Use gapStart+gapExt to be consistent with blastz: */
+        score -= (gapStart + gapExt);
+        lastGap = TRUE;
+        }
+    }
+    else
+        {
+    score += ss->matrix[(int)q][(int)t];
+    lastGap = FALSE;
+    }
     }
 return score;
 }
@@ -307,8 +307,8 @@ return axtScore(axt, ss);
 }
 
 boolean axtGetSubsetOnT(struct axt *axt, struct axt *axtOut,
-			int newStart, int newEnd, struct axtScoreScheme *ss,
-			boolean includeEdgeGaps)
+            int newStart, int newEnd, struct axtScoreScheme *ss,
+            boolean includeEdgeGaps)
 /* Return FALSE if axt is not in the new range.  Otherwise, set axtOut to
  * a subset that goes from newStart to newEnd in target coordinates. 
  * If includeEdgeGaps, don't trim target gaps before or after the range. */
@@ -333,27 +333,27 @@ else
     char *tSymStart = skipIgnoringDash(a.tSym, newStart - a.tStart, TRUE);
     char *tSymEnd = skipIgnoringDash(tSymStart, newEnd - newStart, FALSE);
     if (includeEdgeGaps)
-	{
-	while (tSymStart > a.tSym)
-	    if (*(--tSymStart) != '-')
-		{
-		tSymStart++;
-		break;
-		}
-	while (tSymEnd < a.tSym + a.symCount)
-	    if (*(++tSymEnd) != '-')
-		{
-		tSymEnd--;
-		break;
-		}
-	if (newEnd == newStart && tSymEnd > tSymStart)
-	    {
-	    if (*tSymStart != '-')
-		tSymStart++;
-	    if (*(tSymEnd-1) != '-')
-		tSymEnd--;
-	    }
-	}
+    {
+    while (tSymStart > a.tSym)
+        if (*(--tSymStart) != '-')
+        {
+        tSymStart++;
+        break;
+        }
+    while (tSymEnd < a.tSym + a.symCount)
+        if (*(++tSymEnd) != '-')
+        {
+        tSymEnd--;
+        break;
+        }
+    if (newEnd == newStart && tSymEnd > tSymStart)
+        {
+        if (*tSymStart != '-')
+        tSymStart++;
+        if (*(tSymEnd-1) != '-')
+        tSymEnd--;
+        }
+    }
     int symCount = tSymEnd - tSymStart;
     char *qSymStart = a.qSym + (tSymStart - a.tSym);
     a.qStart += countNonDash(a.qSym, qSymStart - a.qSym);
@@ -365,17 +365,17 @@ else
     a.tSym = tSymStart;
     a.score = axtScore(&a, ss);
     if ((a.qStart < a.qEnd && a.tStart < a.tEnd) ||
-	(includeEdgeGaps && (a.qStart < a.qEnd || a.tStart < a.tEnd)))
-	{
-	*axtOut = a;
-	return TRUE;
-	}
+    (includeEdgeGaps && (a.qStart < a.qEnd || a.tStart < a.tEnd)))
+    {
+    *axtOut = a;
+    return TRUE;
+    }
     return FALSE;
     }
 }
 
 void axtSubsetOnT(struct axt *axt, int newStart, int newEnd, 
-	struct axtScoreScheme *ss, FILE *f)
+    struct axtScoreScheme *ss, FILE *f)
 /* Write out subset of axt that goes from newStart to newEnd
  * in target coordinates. */
 {
@@ -413,10 +413,10 @@ for (i1=0; i1<=1; ++i1)
        if (i1 == 0 && i2 == 0)
            continue;
        for (j1=0; j1<4; ++j1)
-	   for (j2=0; j2<4; ++j2)
-	      {
-	      ss->matrix[twoCase[i1][j1]][twoCase[i2][j2]] = ss->matrix[twoCase[0][j1]][twoCase[0][j2]];
-	      }
+       for (j2=0; j2<4; ++j2)
+          {
+          ss->matrix[twoCase[i1][j1]][twoCase[i2][j2]] = ss->matrix[twoCase[0][j1]][twoCase[0][j2]];
+          }
        }
 }
 
@@ -427,11 +427,12 @@ struct axtScoreScheme *axtScoreSchemeDefault()
  * this. */
 {
 static struct axtScoreScheme *ss;
-struct axtScoreScheme *tt;
+static struct axtScoreScheme *tt;
 
 if (ss != NULL)
     return ss;
-AllocVar(tt);
+if (tt == NULL)
+    AllocVar(tt);
 
 /* Set up lower case elements of matrix. */
 tt->matrix['a']['a'] = 91;
@@ -466,32 +467,39 @@ struct axtScoreScheme *axtScoreSchemeSimpleDna(int match, int misMatch, int gapO
 /* Return a relatively simple scoring scheme for DNA. */
 {
 static struct axtScoreScheme *ss;
-AllocVar(ss);
+static struct axtScoreScheme *tt;
+
+if (ss != NULL)
+    return ss;
+if (tt == NULL)
+    AllocVar(tt);
 
 /* Set up lower case elements of matrix. */
-ss->matrix['a']['a'] = match;
-ss->matrix['a']['c'] = -misMatch;
-ss->matrix['a']['g'] = -misMatch;
-ss->matrix['a']['t'] = -misMatch;
+tt->matrix['a']['a'] = match;
+tt->matrix['a']['c'] = -misMatch;
+tt->matrix['a']['g'] = -misMatch;
+tt->matrix['a']['t'] = -misMatch;
 
-ss->matrix['c']['a'] = -misMatch;
-ss->matrix['c']['c'] = match;
-ss->matrix['c']['g'] = -misMatch;
-ss->matrix['c']['t'] = -misMatch;
+tt->matrix['c']['a'] = -misMatch;
+tt->matrix['c']['c'] = match;
+tt->matrix['c']['g'] = -misMatch;
+tt->matrix['c']['t'] = -misMatch;
 
-ss->matrix['g']['a'] = -misMatch;
-ss->matrix['g']['c'] = -misMatch;
-ss->matrix['g']['g'] = match;
-ss->matrix['g']['t'] = -misMatch;
+tt->matrix['g']['a'] = -misMatch;
+tt->matrix['g']['c'] = -misMatch;
+tt->matrix['g']['g'] = match;
+tt->matrix['g']['t'] = -misMatch;
 
-ss->matrix['t']['a'] = -misMatch;
-ss->matrix['t']['c'] = -misMatch;
-ss->matrix['t']['g'] = -misMatch;
-ss->matrix['t']['t'] = match;
+tt->matrix['t']['a'] = -misMatch;
+tt->matrix['t']['c'] = -misMatch;
+tt->matrix['t']['g'] = -misMatch;
+tt->matrix['t']['t'] = match;
 
-propagateCase(ss);
-ss->gapOpen = gapOpen;
-ss->gapExtend = gapExtend;
+propagateCase(tt);
+tt->gapOpen = gapOpen;
+tt->gapExtend = gapExtend;
+
+ss = tt;
 return ss;
 }
 
@@ -604,12 +612,13 @@ char *row[25];
 char *txt;
 int i;
 static struct axtScoreScheme *ss;
-struct axtScoreScheme *tt;
+static struct axtScoreScheme *tt;
 
 if (ss != NULL)
     return ss;
+if (tt == NULL)
+    AllocVar(tt);
 
-AllocVar(tt);
 txt = cloneString(text);
 for (line = txt; line != NULL; line = nextLine)
     {
@@ -676,11 +685,14 @@ struct axtScoreScheme *axtScoreSchemeProteinDefault()
  * scaled to be compatible with the blastz one. */
 {
 static struct axtScoreScheme *ss;
-struct axtScoreScheme *tt;
+static struct axtScoreScheme *tt;
 int i,j;
+
 if (ss != NULL)
     return ss;
-tt = axtScoreSchemeFromProteinText(blosumText, "blosum62");
+if (tt == NULL)
+    tt = axtScoreSchemeFromProteinText(blosumText, "blosum62");
+
 for (i=0; i<128; ++i)
     for (j=0; j<128; ++j)
         tt->matrix[i][j] *= 19;
@@ -729,36 +741,36 @@ ss->extra = NULL;
 if (!lineFileRow(lf, row))
     shortScoreScheme(lf);
 if (row[0][0] != 'A' || row[1][0] != 'C' || row[2][0] != 'G' 
-	|| row[3][0] != 'T')
+    || row[3][0] != 'T')
     errAbort("%s doesn't seem to be a score matrix file", lf->fileName);
 for (i=0; i<4; ++i)
     {
     if (!lineFileRow(lf, row))
-	shortScoreScheme(lf);
+    shortScoreScheme(lf);
     for (j=0; j<4; ++j)
-	ss->matrix[trans[i]][trans[j]] = lineFileNeedNum(lf, row, j);
+    ss->matrix[trans[i]][trans[j]] = lineFileNeedNum(lf, row, j);
     }
 if (lineFileNext(lf, &line, NULL))
     {
     ss->extra = cloneString(line);
     partCount = chopString(line, " =,\t", parts, ArraySize(parts));
     for (i=0; i<partCount-1; i += 2)
-	{
-	if (sameString(parts[i], "O"))
-	    {
-	    gotO = TRUE;
-	    ss->gapOpen = atoi(parts[i+1]);
-	    }
-	if (sameString(parts[i], "E"))
-	    {
-	    gotE = TRUE;
-	    ss->gapExtend = atoi(parts[i+1]);
-	    }
-	}
+    {
+    if (sameString(parts[i], "O"))
+        {
+        gotO = TRUE;
+        ss->gapOpen = atoi(parts[i+1]);
+        }
+    if (sameString(parts[i], "E"))
+        {
+        gotE = TRUE;
+        ss->gapExtend = atoi(parts[i+1]);
+        }
+    }
     if (!gotO || !gotE)
-	errAbort("Expecting O = and E = in last line of %s", lf->fileName);
+    errAbort("Expecting O = and E = in last line of %s", lf->fileName);
     if (ss->gapOpen <= 0 || ss->gapExtend <= 0)
-	errAbort("Must have positive gap scores");
+    errAbort("Must have positive gap scores");
     }
 else
     {
@@ -887,40 +899,40 @@ int qStart = 0, tStart = 0;
 int i;
 
 for (i=0; i<=axt->symCount; ++i)
-    {
+{
     int advanceQ = (isalpha(axt->qSym[i]) ? 1 : 0);
     int advanceT = (isalpha(axt->tSym[i]) ? 1 : 0);
     thisIn = (advanceQ && advanceT);
     if (thisIn)
+    {
+        if (!lastIn)
         {
-	if (!lastIn)
-	    {
-	    qStart = qPos;
-	    tStart = tPos;
-	    }
-	}
+            qStart = qPos;
+            tStart = tPos;
+        }
+    }
     else
+    {
+        if (lastIn)
         {
-	if (lastIn)
-	    {
-	    int size = qPos - qStart;
-	    assert(size == tPos - tStart);
-	    if (size > 0)
-	        {
-		struct cBlock *b;
-		AllocVar(b);
-		b->qStart = qStart;
-		b->qEnd = qPos;
-		b->tStart = tStart;
-		b->tEnd = tPos;
-		slAddHead(pList, b);
-		}
-	    }
-	}
+            int size = qPos - qStart;
+            assert(size == tPos - tStart);
+            if (size > 0)
+            {
+                struct cBlock *b;
+                AllocVar(b);
+                b->qStart = qStart;
+                b->qEnd = qPos;
+                b->tStart = tStart;
+                b->tEnd = tPos;
+                slAddHead(pList, b);
+            }
+        }
+    }
     lastIn = thisIn;
     qPos += advanceQ;
     tPos += advanceT;
-    }
+}
 }
 
 void axtPrintTraditionalExtra(struct axt *axt, int maxLine,
@@ -952,37 +964,37 @@ for (symPos = 0; symPos < axt->symCount; symPos += maxLine)
     fprintf(f, "%0*d ", digits, (reverseQPos ? qFlipOff - qPos: qPos+1));
     for (i=symPos; i<lineEnd; ++i)
         {
-	char c = axt->qSym[i];
-	fputc(c, f);
-	if (c != '.' && c != '-')
-	    ++qPos;
-	}
+    char c = axt->qSym[i];
+    fputc(c, f);
+    if (c != '.' && c != '-')
+        ++qPos;
+    }
     fprintf(f, " %0*d\n", digits, (reverseQPos? qFlipOff - qPos + 1 : qPos));
 
     /* Draw line with match/mismatch symbols. */
     spaceOut(f, digits+1);
     for (i=symPos; i<lineEnd; ++i)
         {
-	char q = axt->qSym[i];
-	char t = axt->tSym[i];
-	char out = ' ';
-	if (q == t)
-	    out = '|';
-	else if (ss != NULL && ss->matrix[(int)q][(int)t] > 0)
-	    out = '+';
-	fputc(out, f);
-	}
+    char q = axt->qSym[i];
+    char t = axt->tSym[i];
+    char out = ' ';
+    if (q == t)
+        out = '|';
+    else if (ss != NULL && ss->matrix[(int)q][(int)t] > 0)
+        out = '+';
+    fputc(out, f);
+    }
     fputc('\n', f);
 
     /* Draw target line including numbers. */
     fprintf(f, "%0*d ", digits, (reverseTPos ? tFlipOff - tPos : tPos+1));
     for (i=symPos; i<lineEnd; ++i)
         {
-	char c = axt->tSym[i];
-	fputc(c, f);
-	if (c != '.' && c != '-')
-	    ++tPos;
-	}
+    char c = axt->tSym[i];
+    fputc(c, f);
+    if (c != '.' && c != '-')
+        ++tPos;
+    }
     fprintf(f, " %0*d\n", digits, (reverseTPos ? tFlipOff - tPos + 1: tPos));
 
     /* Draw extra empty line. */
@@ -1026,8 +1038,8 @@ int oneSize, sizeLeft = size;
 int i;
 
 fprintf(f, ">%s:%d%c%d %s:%d-%d %d\n", 
-	axt->qName, axt->qStart, axt->qStrand, axt->qEnd,
-	axt->tName, axt->tStart, axt->tEnd, axt->score);
+    axt->qName, axt->qStart, axt->qStrand, axt->qEnd,
+    axt->tName, axt->tStart, axt->tEnd, axt->score);
 while (sizeLeft > 0)
     {
     oneSize = sizeLeft;
@@ -1038,11 +1050,11 @@ while (sizeLeft > 0)
 
     for (i=0; i<oneSize; ++i)
         {
-	if (toupper(q[i]) == toupper(t[i]) && isalpha(q[i]))
-	    fputc('|', f);
-	else
-	    fputc(' ', f);
-	}
+    if (toupper(q[i]) == toupper(t[i]) && isalpha(q[i]))
+        fputc('|', f);
+    else
+        fputc(' ', f);
+    }
     fputc('\n', f);
 
     if (oneSize > lineSize)

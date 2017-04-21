@@ -177,7 +177,7 @@ bioSeq *seqList = NULL, *seq;
 boolean doMask = (maskType != NULL);
 
 unsigned faFastBufSize = 0;
-DNA     *faFastBuf;
+DNA     *faFastBuf = NULL;
 
 for (i=0; i<fileCount; ++i)
     {
