@@ -35,8 +35,14 @@ pblat is modified from blat, the licence is the same as blat. The source code an
 executables are freely available for academic, nonprofit and personal use. Commercial
 licensing information is available on the Kent Informatics website.
 
+Cite
+---------------
+Wang M & Kong L. **pblat: a multithread blat algorithm speeding up aligning sequences
+to genomes**. *BMC Bioinformatics* 2019, 20(1). `[full text]
+<https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-019-2597-8>`_
+
 ----
 
-Copyright (C) 2012 - 2017 Wang Meng
+Copyright (C) 2012 - 2019 Wang Meng
 
 Contact me: wangm@mail.cbi.pku.edu.cn 
