@@ -1,7 +1,10 @@
-/* ErrAbort.c - our error handler.
+/* errAbort.c - our error handler.
  *
  * This maintains two stacks - a warning message printer
  * stack, and a "abort handler" stack.
+ *
+ * Note that the abort function always calls the warn handler first.
+ * This is so that the message gets sent.
  *
  * By default the warnings will go to stderr, and
  * aborts will exit the program.  You can push a
@@ -23,9 +26,12 @@
 #include "common.h"
 #include "hash.h"
 #include "dystring.h"
-#include "errabort.h"
+#include "errAbort.h"
 
-
+// errAbort can optionally print a Content-type line and copy errors to stdout, so 
+// error messages don't lead to a 500 error but are shown in the web browser
+// directly. 
+static boolean doContentType = FALSE;
 
 #define maxWarnHandlers 20
 #define maxAbortHandlers 12
@@ -48,9 +54,19 @@ static void defaultVaWarn(char *format, va_list args)
 /* Default error message handler. */
 {
 if (format != NULL) {
+    if (doContentType)
+        {
+        puts("Content-type: text/html\n");
+        puts("Error: ");
+        vfprintf(stdout, format, args);
+        fprintf(stdout, "\n");
+        fflush(stdout);
+        }
+
     fflush(stdout);
     vfprintf(stderr, format, args);
     fprintf(stderr, "\n");
+    fflush(stderr);
     }
 }
 
@@ -196,9 +212,19 @@ vaWarn(format, args);
 noWarnAbort();
 }
 
+void errAbortSetDoContentType(boolean value)
+/* change the setting of doContentType, ie. if errorAbort should print a 
+ * http Content type line. */
+{
+doContentType = value;
+}
+
 void errAbort(char *format, ...)
 /* Abort function, with optional (printf formatted) error message. */
 {
+#ifdef COREDUMP
+    abort();
+#endif
 va_list args;
 va_start(args, format);
 vaErrAbort(format, args);
@@ -295,18 +321,54 @@ return ptav->errAbortInProgress;
 static struct perThreadAbortVars *getThreadVars()
 /* Return a pointer to the perThreadAbortVars for the current pthread. */
 {
+pthread_t pid = pthread_self(); //  pthread_t can be a pointer or a number, implementation-dependent.
+
+// Test for out-of-memory condition causing re-entrancy into this function that would block
+// on its own main mutex ptavMutex.  Do this by looking for its own pid.
+// Some care must be exercised in testing and comparing the threads pid against one in-use.
+// We need yet another mutex and a boolean to tell us when the pidInUse value may be safely compared to pid.
+
+// Use a boolean since there is no known unused value for pthread_t variable. NULL and -1 are not portable.
+static boolean pidInUseValid = FALSE;  // tells when pidInUse contains a valid pid that can be compared.
+static pthread_t pidInUse; // there is no "unused" value to which we can initialize this.
+static pthread_mutex_t pidInUseMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_lock( &pidInUseMutex );
+// If this pid equals pidInUse, then this function has been re-entered due to severe out-of-memory error.
+// But we only compare them when pidInUseValid is TRUE.
+if (pidInUseValid && pthread_equal(pid, pidInUse)) 
+    {
+    // Avoid deadlock on self by exiting immediately.
+    // Use pthread_equal because directly comparing two pthread_t vars is not allowed.
+    // This re-entrancy only happens when it has aborted already due to out of memory
+    // which should be a rare occurrence.
+    char *errMsg = "errAbort re-entered due to out-of-memory condition. Exiting.\n";
+    write(STDERR_FILENO, errMsg, strlen(errMsg)); 
+    exit(1);   // out of memory is a serious problem, exit immediately, but allow atexit cleanup.
+    }
+pthread_mutex_unlock( &pidInUseMutex );
+
+// This is the main mutex we really care about.
+// It controls access to the hash where thread-specific data is stored.
 static pthread_mutex_t ptavMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_lock( &ptavMutex );
+
+// safely tell threads that pidInUse
+// is valid and correctly set and may be compared to pid
+pthread_mutex_lock( &pidInUseMutex );
+pidInUse = pthread_self();  // setting it directly to pid is not allowed.
+pidInUseValid = TRUE;
+pthread_mutex_unlock( &pidInUseMutex );
+
+// This means that if we crash due to out-of-memory below,
+// it will be able to detect the re-entrancy and handle it above.
+
 static struct hash *perThreadVars = NULL;
-pthread_t pid = pthread_self(); //  can be a pointer or a number
-// A true integer has function would be nicer, but this will do.  
-// Don't safef, theoretically that could abort.
-char key[64];
-snprintf(key, sizeof(key), "%lld",  ptrToLL(pid));
-key[ArraySize(key)-1] = '\0';
 if (perThreadVars == NULL)
     perThreadVars = hashNew(0);
-struct hashEl *hel = hashLookup(perThreadVars, key);
+// convert the pid into a string for the hash key
+char pidStr[64];
+safef(pidStr, sizeof(pidStr), "%lld",  ptrToLL(pid));
+struct hashEl *hel = hashLookup(perThreadVars, pidStr);
 if (hel == NULL)
     {
     // if it is the first time, initialization the perThreadAbortVars
@@ -318,8 +380,16 @@ if (hel == NULL)
     ptav->warnArray[0] = defaultVaWarn;
     ptav->abortIx = 0;
     ptav->abortArray[0] = defaultAbort;
-    hel = hashAdd(perThreadVars, key, ptav);
+    hel = hashAdd(perThreadVars, pidStr, ptav);
     }
+
+// safely tell other threads that pidInUse
+// is no longer valid and may not be compared to pid
+pthread_mutex_lock( &pidInUseMutex );
+pidInUseValid = FALSE;
+pthread_mutex_unlock( &pidInUseMutex );
+
+// unlock our mutex controlling the hash of thread-specific data
 pthread_mutex_unlock( &ptavMutex );
 return (struct perThreadAbortVars *)(hel->val);
 }

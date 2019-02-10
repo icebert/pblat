@@ -3,7 +3,7 @@
 
 #include "common.h"
 #include "log.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "dystring.h"
 #include "options.h"
 #include "portable.h"

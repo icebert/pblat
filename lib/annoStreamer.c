@@ -1,7 +1,7 @@
 /* annoStreamer -- returns items sorted by genomic position to successive nextRow calls */
 
 #include "annoStreamer.h"
-#include "errabort.h"
+#include "errAbort.h"
 
 // ----------------------- annoStreamer base methods --------------------------
 

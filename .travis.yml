@@ -1,3 +1,7 @@
 language: c
 script:
   - make
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq zlib1g-dev libssl-dev
+  - test -n $CC && unset CC

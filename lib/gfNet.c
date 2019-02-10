@@ -1,7 +1,7 @@
 /* gfNet.c - Network dependent stuff for blat server. */
 
 #include "common.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "genoFind.h"
 #include "net.h"
 

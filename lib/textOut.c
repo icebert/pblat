@@ -1,7 +1,7 @@
 /* textOut - set up stdout to be HTTP text, file or compressed file. */
 
 #include "common.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "cheapcgi.h"
 #include "pipeline.h"
 #include "textOut.h"

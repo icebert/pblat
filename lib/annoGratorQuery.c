@@ -1,7 +1,7 @@
 /* annoGratorQuery -- framework for integrating genomic annotations from many sources */
 
 #include "annoGratorQuery.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "obscure.h"
 
 struct annoGratorQuery *annoGratorQueryNew(char *assemblyName, struct hash *chromSizes,

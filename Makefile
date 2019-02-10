@@ -2,7 +2,7 @@ MACHTYPE=x86_64
 
 CC=gcc
 CFLAGS=-O -Wall
-HG_INC=-I./inc
+HG_INC=-I./inc -I./htslib
 HG_DEFS=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_GNU_SOURCE -DMACHTYPE_$(MACHTYPE)
 
 O1 = aliType.o apacheLog.o asParse.o axt.o axtAffine.o \
@@ -15,7 +15,7 @@ O1 = aliType.o apacheLog.o asParse.o axt.o axtAffine.o \
     emblParse.o errabort.o errCatch.o \
     fa.o ffAli.o ffScore.o filePath.o fixColor.o flydna.o fof.o \
     fuzzyShow.o gapCalc.o gdf.o gemfont.o gfNet.o gff.o gfxPoly.o \
-    gifcomp.o gifdecomp.o gifLabel.o gifread.o gifwrite.o hash.o \
+    gifcomp.o gifdecomp.o gifLabel.o gifread.o gifwrite.o hash.o hex.o \
     histogram.o hmmPfamParse.o hmmstats.o htmlPage.o htmshell.o \
     https.o internet.o intExp.o jointalign.o jpegSize.o \
     keys.o kxTok.o linefile.o localmem.o log.o \
@@ -30,15 +30,15 @@ O1 = aliType.o apacheLog.o asParse.o axt.o axtAffine.o \
     slog.o snof.o snofmake.o snofsig.o \
     spacedColumn.o spacedSeed.o spaceSaver.o \
     sqlNum.o sqlList.o subText.o synQueue.o tabRow.o textOut.o tokenizer.o trix.o \
-    twoBit.o udc.o verbose.o vGfx.o vGif.o wildcmp.o wormdna.o \
+    twoBit.o udc.o verbose.o vGfx.o wildcmp.o wormdna.o \
     xa.o xAli.o xap.o xmlEscape.o xp.o 
 
 O2 = bandExt.o crudeali.o ffAliHelp.o ffSeedExtend.o fuzzyFind.o \
     genoFind.o gfBlatLib.o gfClientLib.o gfInternal.o gfOut.o gfPcrLib.o gfWebLib.o ooc.o \
     patSpace.o supStitch.o trans3.o
 
-all: blat.o jkOwnLib.a jkweb.a
-	$(CC) $(CFLAGS)  -o pblat blat.o jkOwnLib.a jkweb.a  -lm -lpthread
+all: blat.o jkOwnLib.a jkweb.a htslib/libhts.a
+	$(CC) $(CFLAGS)  -o pblat blat.o jkOwnLib.a jkweb.a htslib/libhts.a  -lm -lpthread -lz -lssl -lcrypto
 	rm -f *.o *.a
 
 jkweb.a: $(O1)
@@ -56,6 +56,8 @@ $(O1): %.o: lib/%.c
 $(O2): %.o: jkOwnLib/%.c
 	$(CC) $(CFLAGS) $(HG_DEFS) $(HG_INC) -c -o $@ $<
 
+htslib/libhts.a:
+	cd htslib && make
 
 clean:
 	rm -f *.o *.a pblat

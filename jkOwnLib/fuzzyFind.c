@@ -46,7 +46,7 @@
 #include "common.h"
 #include "dnautil.h"
 #include "localmem.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "fuzzyFind.h"
 #include "obscure.h"
 

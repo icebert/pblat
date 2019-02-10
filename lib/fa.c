@@ -6,7 +6,7 @@
 /* Modified by Meng Wang. 2012-2015 */
 
 #include "common.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "hash.h"
 #include "portable.h"
 #include "dnautil.h"

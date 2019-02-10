@@ -53,7 +53,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include "errabort.h"
+#include "errAbort.h"
 #include "hash.h"
 #include "dlist.h"
 #include "obscure.h"

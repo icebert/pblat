@@ -4,7 +4,7 @@
  * a separate token.  This is used by autoSql. */
 
 #include "common.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "linefile.h"
 #include "tokenizer.h"
 

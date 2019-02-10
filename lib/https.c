@@ -10,7 +10,7 @@
 #include <pthread.h>
 
 #include "common.h"
-#include "errabort.h"
+#include "errAbort.h"
 
 
 static pthread_mutex_t *mutexes = NULL;
@@ -373,7 +373,7 @@ return params->sv[0];
 
 #include <stdarg.h>
 #include "common.h"
-#include "errabort.h"
+#include "errAbort.h"
 
 int netConnectHttps(char *hostName, int port)
 /* Start https connection with server or die. */

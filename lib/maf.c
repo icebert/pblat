@@ -1,7 +1,7 @@
 /* maf.c - Read/write maf format. */
 #include "common.h"
 #include "linefile.h"
-#include "errabort.h"
+#include "errAbort.h"
 #include "obscure.h"
 #include "dnautil.h"
 #include "axt.h"
