@@ -1,9 +1,8 @@
-/*****************************************************************************
- * Copyright (C) 2000 Jim Kent.  This source code may be freely used         *
- * for personal, academic, and non-profit purposes.  Commercial use          *
- * permitted only by explicit agreement with Jim Kent (jim_kent@pacbell.net) *
- *****************************************************************************/
-/* gff.h Parse a GFF or GTF file. */
+/* gff.h Parse a GFF or GTF file. 
+ *
+ * This file is copyright 2000 Jim Kent, but license is hereby
+ * granted for all use - public, private or commercial. */
+
 
 #ifndef GFF_H
 #define GFF_H
@@ -29,6 +28,11 @@ struct gffLine
     char *proteinId;      /* protein_id in GTF, NULL in GFF. Not allocated here. */
     char *geneName;       /* gene_name or NULL in GTF, NULL in GFF. Not allocated here. */
     char *transcriptName; /* transcript_name or NULL in GTF, NULL in GFF. Not allocated here. */
+    char *geneVersion;  /* gene_version or NULL in GTF, NULL in GFF. Not allocated here. */
+    char *transcriptVersion;  /* transcript_version or NULL in GTF, NULL in GFF. Not allocated here. */
+    char *proteinVersion;  /* protein_version or NULL in GTF, NULL in GFF. Not allocated here. */
+    char *geneType;  /* gene_type or gene_biotype or NULL in GTF, NULL in GFF. Not allocated here. */
+    char *transcriptType;  /* transcript_type or transcript_biotype or NULL in GTF, NULL in GFF. Not allocated here. */
     };
 
 struct gffGroup
@@ -58,6 +62,7 @@ struct gffFeature
     {
     struct gffFeature *next; /* Next in list. */
     char *name;	  /* Name, not allocated here. */
+    int count;	  /* Number of times feature is seen */
     };
 
 struct gffSeqName

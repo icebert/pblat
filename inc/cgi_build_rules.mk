@@ -1,41 +1,63 @@
 #	Common set of build rules for CGI binaries
 
-HG_WARN=$ {HG_WARN_ERR}
-        my:: compile
-        chmod a+rx $A$ {EXE}
-        mv $A$ {EXE} $ {CGI_BIN}-$ {USER}/$A
+ifeq (${CGI_BIN_USER},)
+    CGI_BIN_USER=${CGI_BIN}-${USER}
+endif
 
-        alpha:: strip
-        mv $A$ {EXE} $ {CGI_BIN}/$A
+ifeq (${CGI_BIN_BETA},)
+    CGI_BIN_BETA=${CGI_BIN}-beta
+endif
 
-        beta:: strip
-        mv $A$ {EXE} $ {CGI_BIN}-beta/$A
+# these rules set CGI-BIN_DEST to the right cgi-bin directory depending 
+# on the main goal (my (default), alpha or beta)
+# this won't work if you supply multiple goals "(make my alpha beta")
+# but we do not seem to do that
+CGI-BIN_DEST=${CGI_BIN}
+ifeq ($(MAKECMDGOALS),my)
+    CGI-BIN_DEST=${CGI_BIN}-${USER}
+endif
+ifeq ($(MAKECMDGOALS),)
+    CGI-BIN_DEST=${CGI_BIN}-${USER}
+endif
+ifeq ($(MAKECMDGOALS),beta) 
+    CGI-BIN_DEST=${CGI_BIN}-beta
+endif
 
-        strip::  compile
-        $ {STRIP} $A$ {EXE}
-        chmod g+w $A$ {EXE}
-        chmod a+rx $A$ {EXE}
+my:: compile
+	chmod a+rx $A${EXE}
+	rm -f ${CGI_BIN_USER}/$A
+	mv $A${EXE} ${CGI_BIN_USER}/$A
 
-        install::  strip
-        @if [ ! -d "${DESTDIR}${CGI_BIN}" ];
-then \
-$ {MKDIR} "${DESTDIR}${CGI_BIN}";
-\
-fi
-mv $A$ {EXE} $ {DESTDIR}$ {CGI_BIN}/$A
+alpha:: strip
+	rm -f ${CGI_BIN}/$A
+	mv $A${EXE} ${CGI_BIN}/$A
+
+beta:: strip
+	rm -f ${CGI_BIN_BETA}/$A
+	mv $A${EXE} ${CGI_BIN_BETA}/$A
+
+# don't actually strip so we can get stack traces
+strip::  compile
+	chmod g+w $A${EXE}
+	chmod a+rx $A${EXE}
+
+install::  strip
+	@if [ ! -d "${DESTDIR}${CGI_BIN}" ]; then \
+		${MKDIR} "${DESTDIR}${CGI_BIN}"; \
+	fi
+	rm -f ${DESTDIR}${CGI_BIN}/$A
+	mv $A${EXE} ${DESTDIR}${CGI_BIN}/$A
 
 debug:: $O
-$ {CC} $ {COPT} $ {CFLAGS} $O $ {MYLIBS} $ {L}
-mv $ {AOUT} $A$ {EXE}
-
+	${CC} ${COPT} ${CFLAGS} $O ${MYLIBS} ${L}
+	rm -f $A${EXE}
+	mv ${AOUT} $A${EXE}
 
 lib::
-cd ../../lib;
-make
+	cd ../../lib; make
 
 clean::
-rm -f $O $A$ {EXE}
+	rm -f $O $A${EXE}
 
 tags::
-ctags *.h *.c ../lib/*.c ../inc/*.h ../../lib/*.c ../../inc/*.h
-
+	ctags *.h *.c ../lib/*.c ../inc/*.h ../../lib/*.c ../../inc/*.h

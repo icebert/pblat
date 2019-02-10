@@ -7,6 +7,7 @@
 #ifndef vcf_h
 #define vcf_h
 
+#include "limits.h"
 #include "hash.h"
 #include "linefile.h"
 #include "asParse.h"
@@ -103,8 +104,10 @@ struct vcfFile
     struct vcfRecord *records;	// VCF data rows, sorted by position
     struct hash *byName;		// Hash records by name -- not populated until needed.
     struct hash *pool;		// Used to allocate string values that tend to
-				// be repeated in the files.  hash's localMem is also
-				// use to allocated memory for all other objects.
+				// be repeated in the files.  hash's localMem is also used to
+				// allocated memory for all other objects (if recordPool null)
+    struct lm *reusePool;       // If created with vcfFileMakeReusePool, non-shared record data is
+                                // allocated from this pool. Useful when walking through huge files.
     struct lineFile *lf;	// Used only during parsing
     int maxErr;			// Maximum number of errors before aborting
     int errCnt;			// Error count
@@ -173,7 +176,10 @@ switch (type)
 	fprintf(f, "%c", datum.datChar);
 	break;
     case vcfInfoString:
-	fprintf(f, "%s", datum.datString);
+        if (startsWith("http", datum.datString))
+            fprintf(f, "<a target=_blank href='%s'>%s</a>", datum.datString, datum.datString);
+        else
+            fprintf(f, "%s", datum.datString);
 	break;
     default:
 	errAbort("vcfPrintDatum: Unrecognized type %d", type);
@@ -181,12 +187,36 @@ switch (type)
     }
 }
 
-struct vcfFile *vcfFileMayOpen(char *fileOrUrl, int maxErr, int maxRecords, boolean parseAll);
+#define VCF_IGNORE_ERRS (INT_MAX - 1)
+
+struct vcfFile *vcfFileNew();
+/* Return a new, empty vcfFile object. */
+
+struct vcfFile *vcfFileFromHeader(char *name, char *headerString, int maxErr);
+/* Parse the VCF header string into a vcfFile object with no rows.
+ * name is for error reporting.
+ * If maxErr is non-negative then continue to parse until maxErr+1 errors have been found.
+ * A maxErr less than zero does not stop and reports all errors.
+ * Set maxErr to VCF_IGNORE_ERRS for silence. */
+
+struct vcfFile *vcfFileMayOpen(char *fileOrUrl, char *chrom, int start, int end,
+			       int maxErr, int maxRecords, boolean parseAll);
 /* Open fileOrUrl and parse VCF header; return NULL if unable.
- * If parseAll, then read in all lines, parse and store in
+ * If chrom is non-NULL, scan past any variants that precede {chrom, chromStart}.
+ * Note: this is very inefficient -- it's better to use vcfTabix if possible!
+ * If parseAll, then read in all lines in region, parse and store in
  * vcff->records; if maxErr >= zero, then continue to parse until
  * there are maxErr+1 errors.  A maxErr less than zero does not stop
- * and reports all errors. */
+ * and reports all errors. Set maxErr to VCF_IGNORE_ERRS for silence. */
+
+struct vcfFile *vcfTabixFileAndIndexMayOpen(char *fileOrUrl, char *tbiFileOrUrl, char *chrom, int start, int end,
+				    int maxErr, int maxRecords);
+/* Open a VCF file that has been compressed and indexed by tabix and
+ * parse VCF header, or return NULL if unable. tbiFileOrUrl can be NULL.
+ * If chrom is non-NULL, seek to the position range and parse all lines in
+ * range into vcff->records.  If maxErr >= zero, then continue to parse until
+ * there are maxErr+1 errors.  A maxErr less than zero does not stop
+ * and reports all errors. Set maxErr to VCF_IGNORE_ERRS for silence */
 
 struct vcfFile *vcfTabixFileMayOpen(char *fileOrUrl, char *chrom, int start, int end,
 				    int maxErr, int maxRecords);
@@ -195,10 +225,56 @@ struct vcfFile *vcfTabixFileMayOpen(char *fileOrUrl, char *chrom, int start, int
  * seek to the position range and parse all lines in range into
  * vcff->records.  If maxErr >= zero, then continue to parse until
  * there are maxErr+1 errors.  A maxErr less than zero does not stop
- * and reports all errors. */
+ * and reports all errors. Set maxErr to VCF_IGNORE_ERRS for silence. */
+
+int vcfTabixBatchRead(struct vcfFile *vcff, char *chrom, int start, int end,
+                      int maxErr, int maxRecords);
+// Reads a batch of records from an opened and indexed VCF file, adding them to
+// vcff->records and returning the count of new records added in this batch.
+// Note: vcff->records will continue to be sorted, even if batches are loaded
+// out of order.  Additionally, resulting vcff->records will contain no duplicates
+// so returned count refects only the new records added, as opposed to all records
+// in range.  If maxErr >= zero, then continue to parse until there are maxErr+1
+// errors.  A maxErr less than zero does not stop and reports all errors.  Set
+// maxErr to VCF_IGNORE_ERRS for silence.
+
+void vcfFileMakeReusePool(struct vcfFile *vcff, int initialSize);
+// Creates a separate memory pool for records.  Establishing this pool allows
+// using vcfFileFlushRecords to abandon previously read records and free
+// the associated memory. Very useful when reading an entire file in batches.
+#define vcfFileLm(vcff) ((vcff)->reusePool ? (vcff)->reusePool : (vcff)->pool->lm)
+
+void vcfFileFlushRecords(struct vcfFile *vcff);
+// Abandons all previously read vcff->records and flushes the reuse pool (if it exists).
+// USE WITH CAUTION.  All previously allocated record pointers are now invalid.
+
+struct vcfRecord *vcfNextRecord(struct vcfFile *vcff);
+/* Parse the words in the next line from vcff into a vcfRecord. Return NULL at end of file.
+ * Note: this does not store record in vcff->records! */
 
 struct vcfRecord *vcfRecordFromRow(struct vcfFile *vcff, char **words);
 /* Parse words from a VCF data line into a VCF record structure. */
+
+unsigned int vcfRecordTrimIndelLeftBase(struct vcfRecord *rec);
+/* For indels, VCF includes the left neighboring base; for example, if the alleles are
+ * AA/- following a G base, then the VCF record will start one base to the left and have
+ * "GAA" and "G" as the alleles.  That is not nice for display for two reasons:
+ * 1. Indels appear one base wider than their dbSNP entries.
+ * 2. In pgSnp display mode, the two alleles are always the same color.
+ * However, for hgTracks' mapBox we need the correct chromStart for identifying the
+ * record in hgc -- so return the original chromStart. */
+
+unsigned int vcfRecordTrimAllelesRight(struct vcfRecord *rec);
+/* Some tools output indels with extra base to the right, for example ref=ACC, alt=ACCC
+ * which should be ref=A, alt=AC.  When the extra bases make the variant extend from an
+ * intron (or gap) into an exon, it can cause a false appearance of a frameshift.
+ * To avoid this, when all alleles have identical base(s) at the end, trim all of them,
+ * and update rec->chromEnd.
+ * For hgTracks' mapBox we need the correct chromStart for identifying the record in hgc,
+ * so return the original chromEnd. */
+
+int vcfRecordCmp(const void *va, const void *vb);
+/* Compare to sort based on position. */
 
 void vcfFileFree(struct vcfFile **vcffPtr);
 /* Free a vcfFile object. */
@@ -224,9 +300,23 @@ struct vcfInfoDef *vcfInfoDefForGtKey(struct vcfFile *vcff, const char *key);
 /* Look up the type of genotype FORMAT component key, in the definitions from the header,
  * and failing that, from the keys reserved in the spec. */
 
+const struct vcfInfoElement *vcfGenotypeFindInfo(const struct vcfGenotype *gt, char *key);
+/* Find the genotype infoElement for key, or return NULL. */
+
+char *vcfFilePooledStr(struct vcfFile *vcff, char *str);
+/* Allocate memory for a string from vcff's shared string pool. */
+
 #define VCF_NUM_COLS 10
 
 struct asObject *vcfAsObj();
 // Return asObject describing fields of VCF
+
+char *vcfGetSlashSepAllelesFromWords(char **words, struct dyString *dy);
+/* Overwrite dy with a /-separated allele string from VCF words,
+ * skipping the extra initial base that VCF requires for indel alleles if necessary.
+ * Return dy->string for convenience. */
+
+void vcfRecordWriteNoGt(FILE *f, struct vcfRecord *rec);
+/* Write the first 8 columns of VCF rec to f.  Genotype data will be ignored if present. */
 
 #endif // vcf_h

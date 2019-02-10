@@ -1,9 +1,8 @@
-/*****************************************************************************
- * Copyright (C) 2000 Jim Kent.  This source code may be freely used         *
- * for personal, academic, and non-profit purposes.  Commercial use          *
- * permitted only by explicit agreement with Jim Kent (jim_kent@pacbell.net) *
- *****************************************************************************/
-/* HGAP - Human Genome Annotation Project database. */
+/* HGAP - Human Genome Annotation Project database. 
+ *
+ * This file is copyright 2000 Jim Kent, but license is hereby
+ * granted for all use - public, private or commercial. */
+
 #ifndef HGAP_H
 #define HGAP_H
 
@@ -44,8 +43,13 @@ HGID hgRealIdQuery(struct sqlConnection *conn, char *query);
 struct sqlConnection *hgStartUpdate();
 /* Get a connection for an update.  (Starts allocating id's) */
 
-void hgEndUpdate(struct sqlConnection **pConn, char *comment, ...);
+void hgEndUpdate(struct sqlConnection **pConn, char *comment, ...)
 /* Finish up connection with a printf format comment. */
+#if defined(__GNUC__)
+__attribute__((format(printf, 2, 3)))
+#endif
+;
+
 
 HGID hgNextId();
 /* Get next unique id.  (Should only be called after hgStartUpdate). */

@@ -131,6 +131,9 @@ void mafWriteStart(FILE *f, char *scoring);
 void mafWrite(FILE *f, struct mafAli *maf);
 /* Write next alignment to file. */
 
+void mafWriteDelimiter(FILE *f, struct mafAli *maf, char delimiter);
+/* Write next alignment to file using delimiter instead of newline. */
+
 void mafWriteEnd(FILE *f);
 /* Write end tag of maf file. */
 
@@ -224,6 +227,12 @@ double mafScoreRangeMultiz(struct mafAli *maf, int start, int size);
  *   scoreRange(maf,start,size) =
  *	scoreRange(maf,0,start+size) - scoreRange(maf,0,start)
  */
+
+void mafScoreUseSimple();
+/* use a simple scoring system useful for finding mismatches */
+
+void mafScoreUseTraditional();
+/* use the tradition HOX scoring system */
 
 double mafScoreMultizMaxCol(int species);
 /* Return maximum possible score for a column. */

@@ -40,6 +40,9 @@ void udcFileClose(struct udcFile **pFile);
 bits64 udcRead(struct udcFile *file, void *buf, bits64 size);
 /* Read a block from file.  Return amount actually read. */
 
+#define udcReadOne(file, var) udcRead(file, &(var), sizeof(var))
+/* Read one variable from file or die. */
+
 void udcMustRead(struct udcFile *file, void *buf, bits64 size);
 /* Read a block from file.  Abort if any problem, including EOF before size is read. */
 
@@ -64,6 +67,9 @@ double udcReadDouble(struct udcFile *file, boolean isSwapped);
 int udcGetChar(struct udcFile *file);
 /* Get next character from file or die trying. */
 
+char *udcReadLine(struct udcFile *file);
+/* Fetch next line from udc cache. */
+
 char *udcReadStringAndZero(struct udcFile *file);
 /* Read in zero terminated string from file.  Do a freeMem of result when done. */
 
@@ -83,6 +89,9 @@ struct lineFile *udcWrapShortLineFile(char *url, char *cacheDir, size_t maxSize)
 void udcSeek(struct udcFile *file, bits64 offset);
 /* Seek to a particular (absolute) position in file. */
 
+void udcSeekCur(struct udcFile *file, bits64 offset);
+/* Seek to a particular (from current) position in file. */
+
 bits64 udcTell(struct udcFile *file);
 /* Return current file position. */
 
@@ -90,6 +99,11 @@ bits64 udcCleanup(char *cacheDir, double maxDays, boolean testOnly);
 /* Remove cached files older than maxDays old. If testOnly is set
  * no clean up is done, but the size of the files that would be
  * cleaned up is still. */
+
+void udcParseUrl(char *url, char **retProtocol, char **retAfterProtocol, char **retColon);
+/* Parse the URL into components that udc treats separately. 
+ * *retAfterProtocol is Q-encoded to keep special chars out of filenames.  
+ * Free all *ret's except *retColon when done. */
 
 void udcParseUrlFull(char *url, char **retProtocol, char **retAfterProtocol, char **retColon,
 		     char **retAuth);
@@ -103,6 +117,9 @@ char *udcDefaultDir();
 
 void udcSetDefaultDir(char *path);
 /* Set default directory for cache */
+
+void udcDisableCache();
+/* Switch off caching. Re-enable with udcSetDefaultDir */
 
 #define udcDevicePrefix "udc:"
 /* Prefix used by convention to indicate a file should be accessed via udc.  This is
@@ -120,6 +137,10 @@ long long int udcSizeFromCache(char *url, char *cacheDir);
 /* Look up the file size from the local cache bitmap file, or -1 if there
  * is no cache for url. */
 
+time_t udcTimeFromCache(char *url, char *cacheDir);
+/* Look up the file datetime from the local cache bitmap file, or 0 if there
+ * is no cache for url. */
+
 unsigned long udcCacheAge(char *url, char *cacheDir);
 /* Return the age in seconds of the oldest cache file.  If a cache file is
  * missing, return the current time (seconds since the epoch). */
@@ -135,9 +156,32 @@ void udcSetCacheTimeout(int timeout);
 time_t udcUpdateTime(struct udcFile *udc);
 /* return udc->updateTime */
 
-#ifdef PROGRESS_METER
-off_t remoteFileSize(char *url);
-/* fetch remote file size from given URL */
-#endif
+boolean udcFastReadString(struct udcFile *f, char buf[256]);
+/* Read a string into buffer, which must be long enough
+ * to hold it.  String is in 'writeString' format. */
+
+off_t udcFileSize(char *url);
+/* fetch remote or local file size from given URL or path */
+
+boolean udcExists(char *url);
+/* return true if a remote or local file exists */
+
+boolean udcIsLocal(char *url);
+/* return true if url is not a http or ftp file, just a normal local file path */
+
+void udcSetLog(FILE *fp);
+/* Tell UDC where to log its statistics. */
+
+void udcMMap(struct udcFile *file);
+/* Enable access to underlying file as memory using mmap.  udcMMapFetch
+ * must be called to actually access regions of the file. */
+
+void *udcMMapFetch(struct udcFile *file, bits64 offset, bits64 size);
+/* Return pointer to a region of the file in memory, ensuring that regions is
+ * cached.. udcMMap must have been called to enable access.  This must be
+ * called for first access to a range of the file or erroneous (zeros) data
+ * maybe returned.  Maybe called multiple times on a range or overlapping
+ * returns. */
+
 
 #endif /* UDC_H */

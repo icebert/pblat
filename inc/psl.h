@@ -31,13 +31,13 @@ struct rbTree;
 #define PSL_NUM_COLS  21  /* number of columns in a PSL */
 #define PSLX_NUM_COLS 23  /* number of columns in a PSLX */
 
-/* Options to pslGetCreateSql */
-#define PSL_TNAMEIX   0x01  /* create target name index */
-#define PSL_WITH_BIN  0x02  /* add bin column */
 #define PSL_XA_FORMAT 0x04  /* add XA format columns */
 
 /* options for pslFromAlign */
 #define PSL_IS_SOFTMASK 0x01 /* lower case are mask */
+
+/* options for pslCheck */
+#define PSL_CHECK_IGNORE_INSERT_CNTS 0x01 /* Don't check insert counts in psl */
 
 struct psl
 /* Summary info about a patSpace alignment */
@@ -160,6 +160,12 @@ int pslCmpQuery(const void *va, const void *vb);
 int pslCmpTarget(const void *va, const void *vb);
 /* Compare to sort based on target. */
 
+int pslCmpTargetStart(const void *va, const void *vb);
+/* Compare to sort based on target start. */
+
+int pslCmpTargetScore(const void *va, const void *vb);
+/* Compare to sort based on target then score. */
+
 int pslCmpTargetAndStrand(const void *va, const void *vb);
 /* Compare to sort based on target, strand,  tStart. */
 
@@ -200,10 +206,18 @@ struct psl *pslFromFakeFfAli(struct ffAli *ff,
 int pslOrientation(struct psl *psl);
 /* Translate psl strand + or - to orientation +1 or -1 */
 
-/* marcos to get query and target strand.  Target returns implied + when
+INLINE char pslQStrand(struct psl *psl)
+/* Get query strand. */
+{
+return psl->strand[0];
+}
+
+INLINE char pslTStrand(struct psl *psl)
+/* Get the target strand., Returns implied + when
  * it's not specific  */
-#define pslQStrand(p) ((p)->strand[0])
-#define pslTStrand(p) (((p)->strand[1] != '-') ? '+' : '-')
+{
+return (psl->strand[1] != '-') ? '+' : '-';
+}
 
 int pslWeightedIntronOrientation(struct psl *psl, struct dnaSeq *genoSeq, int offset);
 /* Return >0 if introns make it look like alignment is on + strand,
@@ -246,16 +260,21 @@ struct psl *pslTrimToQueryRange(struct psl *oldPsl, int qMin, int qMax);
 /* Return psl trimmed to fit inside qMin/qMax.  Note this does not
  * update the match/misMatch and related fields. */
 
-char* pslGetCreateSql(char* table, unsigned options, int tNameIdxLen);
-/* Get SQL required to create PSL table.  Options is a bit set consisting
- * of PSL_TNAMEIX, PSL_WITH_BIN, and PSL_XA_FORMAT.  tNameIdxLen is
- * the number of characters in target name to index.  If greater than
- * zero, must specify PSL_TNAMEIX.  If zero and PSL_TNAMEIX is specified,
- * to will default to 8. */
+void pslRecalcBounds(struct psl *psl);
+/* Calculate qStart/qEnd tStart/tEnd at top level to be consistent
+ * with blocks. */
 
 int pslCheck(char *pslDesc, FILE* out, struct psl* psl);
 /* Validate a PSL for consistency.  pslDesc is printed the error messages
  * to file out (open /dev/null to discard). Return count of errors. */
+
+int pslCheck2(unsigned opts, char *pslDesc, FILE* out, struct psl* psl);
+/* Validate a PSL for consistency.  pslDesc is printed the error messages to
+ * file out (open /dev/null to discard). Return count of errors.  Option
+ * PSL_CHECK_IGNORE_INSERT_CNTS doesn't validate problems insert counts fields
+ * in each PSL.  Useful because protein PSL doesn't seen to compute these in a
+ * consistent way.
+ */
 
 int pslCountBlocks(struct psl *target, struct psl *query, int maxBlockGap);
 /* count the number of blocks in the query that overlap the target */
@@ -296,6 +315,9 @@ void pslGrow(struct psl *psl, int *blockSpacePtr);
  * should point the the current maximum number of blocks and will be
  * updated to with the new amount of space. */
 
+void pslComputeInsertCounts(struct psl *psl);
+/* compute numInsert and baseInsert fields from the blocks */
+
 struct psl* pslFromGff3Cigar(char *qName, int qSize, int qStart, int qEnd,
                              char *tName, int tSize, int tStart, int tEnd,
                              char* strand, char *cigar);
@@ -310,6 +332,18 @@ float pslIdent(struct psl *psl);
 float pslQueryAligned(struct psl *psl);
 /* compute fraction of query that was aligned */
 
+INLINE unsigned pslQStart(struct psl *psl, int blkIdx)
+/* return query start for the given block */
+{
+return psl->qStarts[blkIdx];
+}
+
+INLINE unsigned pslTStart(struct psl *psl, int blkIdx)
+/* return target start for the given block */
+{
+return psl->tStarts[blkIdx];
+}
+
 INLINE unsigned pslQEnd(struct psl *psl, int blkIdx)
 /* return query end for the given block */
 {
@@ -322,5 +356,12 @@ INLINE unsigned pslTEnd(struct psl *psl, int blkIdx)
 return psl->tStarts[blkIdx] + psl->blockSizes[blkIdx];
 }
 
+struct psl* pslClone(struct psl *psl);
+/* clone a psl */
+
+extern char *pslSortList[5];
+
+void pslSortListByVar(struct psl **pslList, char *sort);
+/* Sort a list of psls using the method definied in the sort string. */
 #endif /* PSL_H */
 

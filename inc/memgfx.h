@@ -1,13 +1,11 @@
-/*****************************************************************************
- * Copyright (C) 2000 Jim Kent.  This source code may be freely used         *
- * for personal, academic, and non-profit purposes.  Commercial use          *
- * permitted only by explicit agreement with Jim Kent (jim_kent@pacbell.net) *
- *****************************************************************************/
 /* Memgfx - stuff to do graphics in memory buffers.
  * Typically will just write these out as .gif or .png files.
  * This stuff is byte-a-pixel for simplicity.
  * It can do 256 colors.
- */
+ *
+ * This file is copyright 2000 Jim Kent, but license is hereby
+ * granted for all use - public, private or commercial. */
+
 #ifndef MEMGFX_H
 #define MEMGFX_H
 
@@ -15,12 +13,11 @@
 #include "gfxPoly.h"
 #endif
 
-#ifdef COLOR32
 typedef unsigned int Color;
 
-// BIGENDIAN machines:
-
 #if defined(__sgi__) || defined(__sgi) || defined(__powerpc__) || defined(sparc) || defined(__ppc__) || defined(__s390__) || defined(__s390x__)
+
+// BIGENDIAN machines:
 
 #define MEMGFX_BIGENDIAN	1
 #define MG_WHITE   0xffffffff
@@ -34,8 +31,13 @@ typedef unsigned int Color;
 #define MG_GRAY    0x808080ff
 
 #define MAKECOLOR_32(r,g,b) (((unsigned int)0xff) | ((unsigned int)b<<8) | ((unsigned int)g << 16) | ((unsigned int)r << 24))
+#define COLOR_32_RED(c) (((c)>>24)&0xff)
+#define COLOR_32_GREEN(c) (((c)>>16)&0xff)
+#define COLOR_32_BLUE(c) (((c)>>8)&0xff)
 
 #else
+
+// LITTLE ENDIAN machines:
 
 #define MG_WHITE   0xffffffff
 #define MG_BLACK   0xff000000
@@ -48,23 +50,10 @@ typedef unsigned int Color;
 #define MG_GRAY    0xff808080
 
 #define MAKECOLOR_32(r,g,b) (((unsigned int)0xff<<24) | ((unsigned int)b<<16) | ((unsigned int)g << 8) | (unsigned int)r)
+#define COLOR_32_RED(c) ((c)&0xff)
+#define COLOR_32_GREEN(c) (((c)>>8)&0xff)
+#define COLOR_32_BLUE(c) (((c)>>16)&0xff)
 #endif
-
-#else /* 8-bit color */
-typedef unsigned char Color;
-
-#define MG_WHITE 0
-#define MG_BLACK 1
-#define MG_RED 2
-#define MG_GREEN 3
-#define MG_BLUE 4
-#define MG_CYAN 5
-#define MG_MAGENTA 6
-#define MG_YELLOW 7
-#define MG_GRAY 8
-#define MG_FREE_COLORS_START 9
-
-#endif /* COLOR32 */
 
 #define MG_WRITE_MODE_NORMAL    0
 #define MG_WRITE_MODE_MULTIPLY  (1 << 0)
@@ -348,6 +337,31 @@ void mgDrawPoly(struct memGfx *mg, struct gfxPoly *poly, Color color,
 	boolean filled);
 /* Draw polygon, possibly filled in color. */
 
+void mgEllipse(struct memGfx *mg, int x0, int y0, int x1, int y1, Color color,
+                        int mode, boolean isDashed);
+/* Draw an ellipse (or limit to top or bottom) specified by rectangle, using Bresenham algorithm.
+ * Optionally, alternate dots.
+ * Point 0 is left, point 1 is top of rectangle
+ * Adapted trivially from code posted at http://members.chello.at/~easyfilter/bresenham.html
+ * Author: Zingl Alois, 8/22/2016
+ */
+
+/* Ellipse drawing modes */
+#define ELLIPSE_FULL    0
+#define ELLIPSE_TOP     1
+#define ELLIPSE_BOTTOM  2
+
+int mgCurve(struct memGfx *mg, int x0, int y0, int x1, int y1, int x2, int y2, Color color,
+                        boolean isDashed);
+/* Draw a segment of an anti-aliased curve within 3 points (quadratic Bezier)
+ * Return max y value. Optionally draw curve as dashed line.
+ * Adapted trivially from code posted at http://members.chello.at/~easyfilter/bresenham.html
+ * Author: Zingl Alois, 8/22/2016
+ */
+/* TODO: allow specifying a third point on the line
+ *  P(t) = (1-t)^2 * p0 + 2 * (1-t) * t * p1 + t^2 * p2
+ */
+
 struct hslColor mgRgbToHsl(struct rgbColor rgb);
 /* Convert RGB to HSL colorspace (see http://en.wikipedia.org/wiki/HSL_and_HSV) 
  * In HSL, Hue is the color in the range [0,360) with 0=red 120=green 240=blue,
@@ -385,5 +399,11 @@ struct rgbColor mgRgbTransformHsv(struct rgbColor in, double h, double s, double
  * Returns the transformed rgb value 
  * Use H=0, S=V=1 for identity transformation
  */
+
+struct rgbColor mgColorIxToRgb(struct memGfx *mg, int colorIx);
+/* Return rgb value at color index. */
+
+struct rgbColor colorIxToRgb(int colorIx);
+/* Return rgb value at color index. */
 
 #endif /* MEMGFX_H */

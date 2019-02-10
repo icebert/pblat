@@ -55,6 +55,10 @@ typedef double hacDistanceFunction(const struct slList *item1, const struct slLi
 typedef struct slList *(hacMergeFunction)(const struct slList *item1, const struct slList *item2,
 					  void *extraData);
 
+/* Optional caller-provided function to compare two children and determine first born. */ 
+typedef bool hacSibCmpFunction(const struct slList *item1, const struct slList *item2,
+					  void *extraData);
+
 /* Optional caller-provided function to compare two items or clusters for pre-sorting
  * and pre-clustering of identical items. */
 typedef int hacCmpFunction(const struct slList *item1, const struct slList *item2,
@@ -78,5 +82,32 @@ struct hacTree *hacTreeFromItems(const struct slList *itemList, struct lm *local
 /* Using distF, mergeF, optionally cmpF and binary tree operations,
  * perform a hierarchical agglomerative (bottom-up) clustering of
  * items.  To free the resulting tree, lmCleanup(&localMem). */
+
+struct hacTree *hacTreeMultiThread(int threadCount, struct slList *itemList, struct lm *localMem,
+				 hacDistanceFunction *distF, hacMergeFunction *mergeF,
+				 hacSibCmpFunction *cmpF, 
+				 void *extraData, struct hash *precalcDistanceHash);
+/* Construct hacTree minimizing number of merges called, and doing distance calls
+ * in parallel when possible.   Do a lmCleanup(localMem) to free returned tree. 
+ * The inputs are
+ *	threadCount - number of threads - at least one, recommended no more than 15
+ *	itemList - list of items to tree up.  Format can vary, but must start with a
+ *	           pointer to next item in list.
+ *	localMem - memory pool where hacTree and a few other things are allocated from
+ *	distF - function that calculates distance between two items, passed items and extraData
+ *	mergeF - function that creates a new item in same format as itemList from two passed
+ *	         in items and the extraData.  Typically does average of two input items
+ *	extraData - parameter passed through to distF and mergeF, otherwise unused, may be NULL
+ *	precalcDistanceHash - a hash containing at least some of the pairwise distances
+ *	            between items on itemList, set with hacTreeDistanceHashAdd. 
+ *	            As a side effect this hash will be expanded to include all distances 
+ *	            including those between intermediate nodes.  May be NULL. */
+
+void hacTreeDistanceHashAdd(struct hash *hash, void *itemA, void *itemB, double distance);
+/* Add an item to distance hash */
+
+double * hacTreeDistanceHashLookup(struct hash *hash, void *itemA, void *itemB);
+/* Look up pair in distance hash.  Returns NULL if not found, otherwise pointer to
+ * distance */
 
 #endif//def HACTREE_H

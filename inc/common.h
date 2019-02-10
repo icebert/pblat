@@ -114,8 +114,9 @@
 #define signed32 int	      /* Wants to be signed 32 bits. */
 #define bits8 unsigned char   /* Wants to be unsigned 8 bits. */
 
-#define BIGNUM 0x3fffffff	/* A really big number */
+#define BIGNUM 0x3fffffff	/* A really big number but most subtraction won't cause overflow */
 #define BIGDOUBLE 1.7E+308	/* Close to biggest double-precision number */
+#define BIGLONGLONG 0x3fffffffffffffff /* A really big long long value safe for a subtraction */
 
 #define LIMIT_2or8GB (2147483647 * ((sizeof(size_t)/4)*(sizeof(size_t)/4)))
 /*      == 2 Gb for 32 bit machines, 8 Gb for 64 bit machines */
@@ -343,8 +344,8 @@ void reverseStrings(char **a, int length);
 void swapBytes(char *a, char *b, int length);
 /* Swap buffers a and b. */
 
-/* Some things to manage simple lists - structures that begin
- * with a pointer to the next element in the list. */
+/******* Some things to manage simple lists - structures that begin ******
+ ******* with a pointer to the next element in the list.            ******/
 struct slList
     {
     struct slList *next;
@@ -429,8 +430,16 @@ void slUniqify(void *pList, CmpFunction *compare, void (*free)());
  * pointers to pointers to elements.  Free should take a simple
  * pointer to dispose of duplicate element, and can be NULL. */
 
+void slSortMerge(void *pA, void *b, CmpFunction *compare);
+// Merges and sorts a pair of singly linked lists using slSort.
+
+void slSortMergeUniq(void *pA, void *b, CmpFunction *compare, void (*free)());
+// Merges and sorts a pair of singly linked lists leaving only unique
+// items via slUniqufy.  duplicate itens are defined by the compare routine
+// returning 0. If free is provided, items dropped from list can disposed of.
+
 boolean slRemoveEl(void *vpList, void *vToRemove);
-/* Remove element from doubly linked list.  Usage:
+/* Remove element from singly linked list.  Usage:
  *    slRemove(&list, el);
  * Returns TRUE if element in list.  */
 
@@ -439,6 +448,8 @@ void slFreeList(void *listPt);
  * Usage:
  *    slFreeList(&list);
  */
+
+/******* slInt - an int on a list - the first of many singly linked list structures *******/
 
 struct slInt
 /* List of integers. */
@@ -460,16 +471,17 @@ int slIntCmpRev(const void *va, const void *vb);
 struct slInt * slIntFind(struct slInt *list, int target);
 /* Find target in slInt list or return NULL */
 
-void doubleSort(int count, double *array);
-/* Sort an array of doubles. */
+struct slUnsigned
+/* List of unsigned */
+    {
+    struct slUnsigned *next;  /* Next in list */
+    unsigned val;	      /* Unsigned value */
+    };
 
-double doubleMedian(int count, double *array);
-/* Return median value in array.  This will sort
- * the array as a side effect. */
+struct slUnsigned *slUnsignedNew(unsigned x);
+/* Return a new slUnsigned. */
 
-void doubleBoxWhiskerCalc(int count, double *array, double *retMin,
-	double *retQ1, double *retMedian, double *retQ3, double *retMax);
-/* Calculate what you need to draw a box and whiskers plot from an array of doubles. */
+/******* slDouble - a double on a list *******/
 
 struct slDouble
 /* List of double-precision numbers. */
@@ -488,16 +500,7 @@ int slDoubleCmp(const void *va, const void *vb);
 double slDoubleMedian(struct slDouble *list);
 /* Return median value on list. */
 
-void slDoubleBoxWhiskerCalc(struct slDouble *list, double *retMin,
-	double *retQ1, double *retMedian, double *retQ3, double *retMax);
-/* Calculate what you need to draw a box and whiskers plot from a list of slDoubles. */
-
-void intSort(int count, int *array);
-/* Sort an array of ints. */
-
-int intMedian(int count, int *array);
-/* Return median value in array.  This will sort
- * the array as a side effect. */
+/******* slName - a zero terminated string on a list *******/
 
 struct slName
 /* List of names. The name array is allocated to accommodate full name
@@ -545,7 +548,7 @@ boolean slNameInListUseCase(struct slName *list, char *string);
 
 void *slNameFind(void *list, char *string);
 /* Return first element of slName list (or any other list starting
- * with next/name fields) that matches string. */
+ * with next/name fields) that matches string. This is case insensitive. */
 
 int slNameFindIx(struct slName *list, char *string);
 /* Return index of first element of slName list (or any other
@@ -574,9 +577,12 @@ struct slName *slNameListFromString(char *s, char delimiter);
 #define slNameListFromComma(s) slNameListFromString(s, ',')
 /* Parse out comma-separated list. */
 
-struct slName *slNameListOfUniqueWords(char *text,boolean respectQuotes);
-// Return list of unique words found by parsing string delimited by whitespace.
-// If respectQuotes then ["Lucy and Ricky" 'Fred and Ethyl'] will yield 2 slNames no quotes
+struct slName *slNameListFromCommaEscaped(char *s);
+/* Return list of slNames gotten from parsing comma delimited string.
+ * The final comma is optional. a,b,c  and a,b,c, are equivalent
+ * for comma-delimited lists. To escape commas, put two in a row, 
+ * which eliminates the possibility for null names 
+ * (eg.  a,,b,c will parse to two elements a,b and c). */
 
 struct slName *slNameListFromStringArray(char *stringArray[], int arraySize);
 /* Return list of slNames from an array of strings of length arraySize.
@@ -592,6 +598,8 @@ struct slName *slNameLoadReal(char *fileName);
 
 struct slName *slNameIntersection(struct slName *a, struct slName *b);
 /* return intersection of two slName lists.  */
+
+/******* slRef - a void pointer on a list *******/
 
 struct slRef
 /* Singly linked list of generic references. */
@@ -612,8 +620,13 @@ void refAdd(struct slRef **pRefList, void *val);
 void refAddUnique(struct slRef **pRefList, void *val);
 /* Add reference to list if not already on list. */
 
+void slRefFreeListAndVals(struct slRef **pList);
+/* Free up (with simple freeMem()) each val on list, and the list itself as well. */
+
 struct slRef *refListFromSlList(void *list);
 /* Make a reference list that mirrors a singly-linked list. */
+
+/******* slPair - a name/value pair on list where value not always a string *******/
 
 struct slPair
 /* A name/value pair. */
@@ -640,6 +653,10 @@ void slPairFreeVals(struct slPair *list);
 
 void slPairFreeValsAndList(struct slPair **pList);
 /* Free up all values on list and list itself */
+
+void slPairFreeValsAndListExt(struct slPair **pList, void (*freeFunc)());
+/* Free up all values on list using freeFunc and list itself.  freeFunc should take a simple
+ * pointer to free an item, and can be NULL. */
 
 struct slPair *slPairFind(struct slPair *list, char *name);
 /* Return list element of given name, or NULL if not found. */
@@ -695,9 +712,38 @@ int slPairAtoiCmp(const void *va, const void *vb);
 void slPairValAtoiSort(struct slPair **pList);
 // Sort slPair list on string values interpreted as integers.
 
+
+
+/******* Some old stuff maybe we could trim. *******/
+
 void gentleFree(void *pt);
 /* check pointer for NULL before freeing.
  * (Actually plain old freeMem does that these days.) */
+
+/******* Some math stuff *******/
+
+void doubleSort(int count, double *array);
+/* Sort an array of doubles. */
+
+double doubleMedian(int count, double *array);
+/* Return median value in array.  This will sort
+ * the array as a side effect. */
+
+void doubleBoxWhiskerCalc(int count, double *array, double *retMin,
+	double *retQ1, double *retMedian, double *retQ3, double *retMax);
+/* Calculate what you need to draw a box and whiskers plot from an array of doubles. */
+
+void slDoubleBoxWhiskerCalc(struct slDouble *list, double *retMin,
+	double *retQ1, double *retMedian, double *retQ3, double *retMax);
+/* Calculate what you need to draw a box and whiskers plot from a list of slDoubles. */
+
+int intMedian(int count, int *array);
+/* Return median value in array.  This will sort
+ * the array as a side effect. */
+
+void intSort(int count, int *array);
+/* Sort an array of ints. */
+
 
 /*******  Some stuff for processing strings. *******/
 
@@ -745,6 +791,9 @@ int differentStringNullOk(char *a, char *b);
 #define isEmpty(string) ((string) == NULL || (string)[0] == 0)
 #define isNotEmpty(string) (! isEmpty(string))
 
+boolean isEmptyTextField(char *s);
+/* Recognize empty string or dot as empty text */
+
 int cmpStringsWithEmbeddedNumbers(const char *a, const char *b);
 /* Compare strings such as gene names that may have embedded numbers,
  * so that bmp4a comes before bmp14a */
@@ -754,6 +803,9 @@ int cmpWordsWithEmbeddedNumbers(const char *a, const char *b);
 
 boolean startsWith(const char *start, const char *string);
 /* Returns TRUE if string begins with start. */
+
+boolean startsWithNoCase(const char *start, const char *string);
+/* Returns TRUE if string begins with start, case-insensitive. */
 
 boolean startsWithWord(char *firstWord, char *line);
 /* Return TRUE if first white-space-delimited word in line
@@ -774,6 +826,12 @@ char *stringBetween(char *start, char *end, char *haystack);
 /* Return string between start and end strings, or NULL if
  * none found.  The first such instance is returned.
  * String must be freed by caller. */
+
+char *nextStringBetween(char *start, char *end, char **pHaystack);
+/* Return next string that occurs between start and end strings
+ * starting seach at *pHaystack.  This will update *pHaystack to after 
+ * end, so it can be called repeatedly. Returns NULL when
+ * no more to be found*/
 
 char * findWordByDelimiter(char *word,char delimit, char *line);
 /* Return pointer to first word in line matching 'word' and delimited
@@ -807,6 +865,12 @@ boolean sqlMatchLike(char *wildCard, char *string);
 boolean anyWild(const char *string);
 /* Return TRUE if any wild card characters in string. */
 
+struct slName *wildExpandList(struct slName *allList, struct slName *wildList,
+    boolean abortMissing);
+/* Wild list is a list of names, possibly including * and ? wildcard characters.  This
+ * function returns names taken from allList that match patterns in wildList.  Works much
+ * like wildcard expansion over a file system but expands over allList instead. */
+
 char *memMatch(char *needle, int nLen, char *haystack, int hLen);
 /* Returns first place where needle (of nLen chars) matches
  * haystack (of hLen chars) */
@@ -827,6 +891,9 @@ char *strUpper(char *s);
 char *strLower(char *s);
 #define tolowers(s) (void)strLower(s)
 /* Convert entire string to lower case */
+
+void replaceChar(char *s, char oldc, char newc);
+/* Repace one char with another. Modifies original string. */
 
 char *replaceChars(char *string, char *oldStr, char *newStr);
 /*
@@ -932,11 +999,15 @@ char *skipLeadingSpaces(char *s);
 char *skipToSpaces(char *s);
 /* Return first white space. */
 
-void eraseTrailingSpaces(char *s);
-/* Replace trailing white space with zeroes. */
+int eraseTrailingSpaces(char *s);
+/* Replace trailing white space with zeroes. Returns number of
+ * spaces erased. */
 
 void eraseWhiteSpace(char *s);
 /* Remove white space from a string */
+
+void eraseNonDigits(char *s);
+/* Remove any chars leaving digits only */
 
 void eraseNonAlphaNum(char *s);
 /* Remove non-alphanumeric chars from string */
@@ -969,17 +1040,22 @@ char *nextWord(char **pLine);
 /* Return next word in *pLine and advance *pLine to next
  * word. Returns NULL when no more words. */
 
-char *nextWordRespectingQuotes(char **pLine);
-// return next word but respects single or double quotes surrounding sets of words.
-
 char *cloneFirstWord(char *line);
 /* Clone first word in line */
+
+char *cloneNotFirstWord(char *s);
+/* Clone part of string after first word. */
 
 char *nextTabWord(char **pLine);
 /* Return next tab-separated word. */
 
+char *cloneFirstWordByDelimiterNoSkip(char *line,char delimit);
+/* Returns a cloned first word, not harming the memory passed in.
+ * Does not skip leading white space.*/
+
 char *cloneFirstWordByDelimiter(char *line,char delimit);
 /* Returns a cloned first word, not harming the memory passed in
+   Skips leading white space.
    Delimiter of ' ' will delimit by isspace() */
 #define cloneFirstWordInLine(line) cloneFirstWordByDelimiter((line),' ')
 #define cloneFirstWordByTab(line)  cloneFirstWordByDelimiter((line),'\t')
@@ -1007,7 +1083,11 @@ int ptArrayIx(void *pt, void *array, int arraySize);
 
 #define stringIx(string, array) stringArrayIx( (string), (array), ArraySize(array))
 
+int cmpStringOrder(char *a, char *b, char **orderFields, int orderCount);
+/* Compare two strings to sort in same order as orderedFields.  If strings are
+ * not in order, will sort them to be after all ordered fields, alphabetically */
 /* Some stuff that is left out of GNU .h files!? */
+
 #ifndef SEEK_SET
 #define SEEK_SET 0
 #endif
@@ -1307,6 +1387,14 @@ int vasafef(char* buffer, int bufSize, char *format, va_list args);
 /* Format string to buffer, vsprintf style, only with buffer overflow
  * checking.  The resulting string is always terminated with zero byte. */
 
+int vatruncatef(char *buf, int size, char *format, va_list args);
+/* Like vasafef, but truncates the formatted string instead of barfing on
+ * overflow. */
+
+void truncatef(char *buf, int size, char *format, ...);
+/* Like safef, but truncates the formatted string instead of barfing on
+ * overflow. */
+
 int safef(char* buffer, int bufSize, char *format, ...)
 /* Format string to buffer, vsprintf style, only with buffer overflow
  * checking.  The resulting string is always terminated with zero byte. */
@@ -1328,6 +1416,9 @@ void safecat(char *buf, size_t bufSize, const char *src);
 void safencat(char *buf, size_t bufSize, const char *src, size_t n);
 /* append n characters from a string to a buffer, with bounds checking. */
 
+void safememset(char *buf, size_t bufSize, const char c, size_t n);
+/* Append a character to a buffer repeatedly, n times with bounds checking.*/
+
 char *naForNull(char *s);
 /* Return 'n/a' if s is NULL, otherwise s. */
 
@@ -1343,9 +1434,13 @@ char *nullIfAllSpace(char *s);
 char *trueFalseString(boolean b);
 /* Return "true" or "false" */
 
-void uglyTime(char *label, ...);
+void uglyTime(char *label, ...)
 /* Print label and how long it's been since last call.  Call with
  * a NULL label to initialize. */
+#if defined(__GNUC__)
+__attribute__((format(printf, 1, 2)))
+#endif
+;
 
 /*	In case the development environment does not supply INFINITY	*/
 #if !defined(INFINITY)
@@ -1354,6 +1449,15 @@ void uglyTime(char *label, ...);
 
 void makeDirs(char* path);
 /* make a directory, including parent directories */
+
+boolean isSymbolString(char *s);
+/* Return TRUE if s can be used as a symbol in the C language */
+
+boolean isNumericString(char *s);
+/* Return TRUE if string is numeric (integer or floating point) */
+
+boolean isAllDigits(char *s);
+/* Return TRUE if string is non-empty and contains only digits (i.e. is a nonnegative integer). */
 
 char *skipNumeric(char *s);
 /* Return first char of s that's not a digit */
@@ -1366,6 +1470,10 @@ char *splitOffNonNumeric(char *s);
 
 char *splitOffNumber(char *db);
 /* Split off number part, e.g. 8 of mm8. Result should be freed when done */
+
+
+void childExecFailedExit(char *msg);
+/* Child exec failed, so quit without atexit cleanup */
 
 void vaDumpStack(char *format, va_list args);
 /* debugging function to run the pstack program on the current process. In
@@ -1428,8 +1536,17 @@ time_t dateToSeconds(const char *date,const char*format);
 boolean dateIsOld(const char *date,const char*format);
 // Is this string date older than now?
 
+boolean dateIsOlderBy(const char *date,const char*format, time_t seconds);
+// Is this string date older than now by this many seconds?
+
 char *dateAddTo(char *date,char *format,int addYears,int addMonths,int addDays);
 /* Add years,months,days to a formatted date and returns the new date as a cloned string
 *  format is a strptime/strftime format: %F = yyyy-mm-dd */
+
+unsigned dayOfYear();
+/* Return the day of the year. */
+
+boolean haplotype(const char *name);
+/* Is this name a haplotype name ?  _hap or _alt in the name */
 
 #endif /* COMMON_H */

@@ -26,7 +26,7 @@ struct twoBitIndex
     {
     struct twoBitIndex *next;	/* Next in list. */
     char *name;			/* Name - allocated in hash */
-    bits32 offset;		/* Offset in file. */
+    bits64 offset;		/* Offset in file. */
     };
 
 struct twoBitFile
@@ -34,7 +34,7 @@ struct twoBitFile
     {
     struct twoBitFile *next;
     char *fileName;	/* Name of this file, for error reporting. */
-    FILE *f;		/* Open file. */
+    void *f;            /* Open file. */
     boolean isSwapped;	/* Is byte-swapping needed. */
     bits32 version;	/* Version of .2bit file */
     bits32 seqCount;	/* Number of sequences. */
@@ -42,6 +42,24 @@ struct twoBitFile
     struct twoBitIndex *indexList;	/* List of sequence. */
     struct hash *hash;	/* Hash of sequences. */
     struct bptFile *bpt;	/* Alternative index. */
+
+        
+    struct twoBit *seqCache; /* Cache information about last sequence accessed, including
+                              * nBlock and mask block.  This doesn't include the data.
+                              * This speeds fragment reads.  */
+    bits64 dataOffsetCache;  /* file offset of data for seqCache seqeunce */
+
+    /* the routines we use to access the twoBit.
+     * These may be UDC routines, or stdio
+     */
+    void (*ourSeek)(void *file, bits64 offset);
+    void (*ourSeekCur)(void *file, bits64 offset);
+    bits64 (*ourTell)(void *file);
+    bits32 (*ourReadBits32)(void *f, boolean isSwapped);
+    bits64 (*ourReadBits64)(void *f, boolean isSwapped);
+    void (*ourClose)(void *pFile);
+    boolean (*ourFastReadString)(void *f, char buf[256]);
+    void (*ourMustRead)(void *file, void *buf, size_t size);
     };
 
 struct twoBitSpec
@@ -60,6 +78,10 @@ struct twoBitSeqSpec
     bits32 end;                /* end of subsequence;
                                  * 0 if not a subsequence */
 };
+
+struct twoBit *twoBitFromOpenFile(struct twoBitFile *tbf);
+/* Read in header and index.  
+ * Squawk and die if there is a problem. */
 
 struct twoBitFile *twoBitOpen(char *fileName);
 /* Open file, read in header and index.  
@@ -137,6 +159,10 @@ void twoBitWriteHeader(struct twoBit *twoBitList, FILE *f);
 /* Write out header portion of twoBit file, including initial
  * index */
 
+void twoBitWriteHeaderExt(struct twoBit *twoBitList, FILE *f, boolean useLong);
+/* Write out header portion of twoBit file, including initial
+ * index. If useLong is True, use 64 bit quantities for the index offsets to support >4Gb assemblies */
+
 boolean twoBitIsFile(char *fileName);
 /* Return TRUE if file is in .2bit format. */
 
@@ -185,10 +211,21 @@ struct twoBitSpec *twoBitSpecNewFile(char *twoBitFile, char *specFile);
 void twoBitSpecFree(struct twoBitSpec **specPtr);
 /* free a twoBitSpec object */
 
+void twoBitOutMaskBeds(struct twoBitFile *tbf, char *seqName, FILE *outF);
+/* output a series of bed3's that enumerate the number of masked bases in a sequence*/
+
 void twoBitOutNBeds(struct twoBitFile *tbf, char *seqName, FILE *outF);
 /* output a series of bed3's that enumerate the number of N's in a sequence*/
 
 int twoBitSeqSizeNoNs(struct twoBitFile *tbf, char *seqName);
 /* return the length of the sequence, not counting N's */
 
+long long twoBitTotalSizeNoN(struct twoBitFile *tbf);
+/* return the size of the all the sequence in file, not counting N's*/
+
+boolean twoBitIsSequence(struct twoBitFile *tbf, char *chromName);
+/* Return TRUE if chromName is in 2bit file. */
+
+struct hash *twoBitChromHash(char *fileName);
+/* Build a hash of chrom names with their sizes. */
 #endif /* TWOBIT_H */

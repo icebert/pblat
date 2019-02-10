@@ -8,6 +8,10 @@
 #include "tokenizer.h"
 #endif
 
+#ifndef HASH_H
+#include "hash.h"
+#endif
+
 enum rqlOp
 /* An operation in the parse tree. */
     {
@@ -46,6 +50,12 @@ enum rqlOp
 
     /* Fancy ops to fetch sub-parts. */
     rqlOpArrayIx,	/* An array with an index. */
+
+    /* Binary mathematical operations. */
+    rqlOpAdd,
+    rqlOpSubtract,
+    rqlOpMultiply,
+    rqlOpDivide,
     };
 
 char *rqlOpToString(enum rqlOp op);
@@ -65,7 +75,7 @@ union rqlVal
     {
     boolean b;
     char *s;
-    int i;
+    long long i;
     double x;
     };
 
@@ -110,11 +120,22 @@ struct rqlParse *rqlParseExpression(struct tokenizer *tkz);
 struct rqlStatement *rqlStatementParse(struct lineFile *lf);
 /* Parse an RQL statement out of text */
 
+struct rqlStatement *rqlStatementParseString(char *string);
+/* Return a parsed-out RQL statement based on string */
+
 void rqlStatementFree(struct rqlStatement **pRql);
 /* Free up an rql statement. */
 
 void rqlStatementDump(struct rqlStatement *rql, FILE *f);
 /* Print out statement to file. */
+
+void *rqlHashFindValEvenInWilds(struct hash *hash, char *name);
+/* Find hash val but if no exact match look for wildcards in hash and then match. */
+
+void rqlCheckFieldsExist(struct rqlStatement *rql, 
+    struct hash *fieldsThatExist, char *fieldSource);
+/* Check that all fields referenced in an rql statement actually exist.
+ * fieldsThatExist is a hash of field names, and fieldSource is where they came from. */
 
 typedef char* (*RqlEvalLookup)(void *record, char *key);
 /* Callback for rqlEvalOnRecord to lookup a variable value. */

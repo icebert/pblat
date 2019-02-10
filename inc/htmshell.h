@@ -14,17 +14,36 @@
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
 
+#ifndef HTMSHELL_H      /* Wrapper to avoid including this twice. */
+#define HTMSHELL_H
+
+#include "dystring.h"
+
+char *makeRandomKey(int numBits);
+/* Generate base64 encoding of a random key of at least size numBits returning string to be freed when done */
+
 void htmlSetCookie(char* name, char* value, char* expires, char* path, char* domain, boolean isSecure);
 /* create a cookie with the given stats */
 
-void htmlParagraph(char *line, ...);
+void htmlParagraph(char *line, ...)
 /* Print a line in it's own paragraph. */
+#if defined(__GNUC__)
+__attribute__((format(printf, 1, 2)))
+#endif
+;
 
 void htmlVaParagraph(char *line, va_list args);
 /* Print a line in it's own paragraph. */
 
-void htmlCenterParagraph(char *line, ...);
+void htmlCenterParagraph(char *line, ...)
 /* Center a line in it's own paragraph. */
+#if defined(__GNUC__)
+__attribute__((format(printf, 1, 2)))
+#endif
+;
+
+void htmlVaEncodeErrorText(char *format, va_list args);
+/* Write an error message encoded against XSS. */
 
 void htmlHorizontalLine();
 /* Print a horizontal line. */
@@ -44,21 +63,44 @@ void htmlTextOut(char *s);
 char *htmlTextStripTags(char *s);
 /* Returns a cloned string with all html tags stripped out */
 
+char *htmlTextStripJavascriptCssAndTags(char *s);
+/* Returns a cloned string with all inline javascript, css, and html tags stripped out */
+
 char *htmlTextReplaceTagsWithChar(char *s, char ch);
 /* Returns a cloned string with all html tags replaced with given char (useful for tokenizing) */
 
-char *htmlEncodeText(char *s, boolean tagsOkay);
+char *htmlEncode(char *s);
 /* Returns a cloned string with quotes replaced by html codes.
-   Changes ',",\n and if not tagsOkay >,<,& to code equivalents.
+   Changes ',",\n and >,<,& to code equivalents.
    This differs from cgiEncode as it handles text that will
    be displayed in an html page or tooltip style title.  */
-#define htmlEncode(s) htmlEncodeText(s,FALSE)
 
-char *attributeEncode(char *str);
+char *attributeEncode(char *s);
 // encode double and single quotes in a string to be used as an element attribute
+
+void attributeDecode(char *s);
+/* For html tag attribute values decode html entities &#xHH; */
+
+void cssDecode(char *s);
+/* For CSS values decode "\HH " */
+
+void jsDecode(char *s);
+/* For JS string values decode "\xHH" */
+
+void urlDecode(char *s);
+/* For URL paramter values decode "%HH" */
 
 void htmlMemDeath();
 /* Complain about lack of memory and abort.  */
+
+char *getNonce();
+/* make nonce one-use-per-page */
+
+char *getCspMetaHeader();
+/* return meta CSP header string */
+
+void generateCspMetaHeader(FILE *f);
+/* Generate Meta CSP Header */
 
 void htmlStart(char *title);
 /* Write the start of a cgi-generated html file */
@@ -124,6 +166,12 @@ void htmlVaWarn(char *format, va_list args);
 /* Write an error message.  (Generally you just call warn() or errAbort().
  * This is exposed mostly for the benefit of the cart.) */
 
+void htmlVaBadRequestAbort(char *format, va_list args);
+/* Print out an HTTP header 400 status code (Bad Request) and message, then exit with error.
+ * NOTE: This must be installed using pushWarnHandler (pushAbortHandler optional) because
+ * vaErrAbort calls vaWarn and then noWarnAbort.  So if the defaut warn handler is used, then
+ * the error message will be printed out by defaultVaWarn before this prints out the header. */
+
 char *htmlWarnStartPattern();
 /* Return starting pattern for warning message. */
 
@@ -172,9 +220,69 @@ void htmlNoEscape();
 /* tell htmlOut to escape special HTML chars '<', '>' */
 void htmlDoEscape();
 
+/* Do not output a http header for error messages. Makes sure that very early
+ * errors are not shown back to the user but trigger a 500 error, */
+void htmlSuppressErrors();
+
 /* Include an HTML file in a CGI.
  *   The file path is relative to the web server document root */
 void htmlIncludeWebFile(char *file);
 
 /* Include an HTML file in a CGI */
 void htmlIncludeFile(char *path);
+
+/* ===== Html printf-style escaping functions ====== */
+
+int htmlSafefAbort(boolean noAbort, int errCode, char *format, ...)
+/* handle noAbort stderror logging and errAbort */
+#ifdef __GNUC__
+__attribute__((format(printf, 3, 4)))
+#endif
+;
+
+int vaHtmlSafefNoAbort(char *buffer, int bufSize, char *format, va_list args, boolean noAbort, boolean noWarnOverflow);
+/* VarArgs Format string to buffer, vsprintf style, only with buffer overflow
+ * checking.  The resulting string is always terminated with zero byte.
+ * Automatically escapes string values.
+ * This function should be efficient on statements with many strings to be escaped. */
+
+int htmlSafef(char *buffer, int bufSize, char *format, ...)
+/* Format string to buffer, vsprintf style, only with buffer overflow
+ * checking.  The resulting string is always terminated with zero byte. 
+ * Escapes string parameters. */
+#ifdef __GNUC__
+__attribute__((format(printf, 3, 4)))
+#endif
+;
+
+void vaHtmlDyStringPrintf(struct dyString *ds, char *format, va_list args);
+/* VarArgs Printf append to dyString
+ * Strings are escaped according to format type. */
+
+void htmlDyStringPrintf(struct dyString *ds, char *format, ...)
+/* VarArgs Printf append to dyString
+ * Strings are escaped according to format type. */
+#ifdef __GNUC__
+__attribute__((format(printf, 2, 3)))
+#endif
+;
+
+void vaHtmlFprintf(FILE *f, char *format, va_list args);
+/* fprintf using html encoding types */
+
+void htmlFprintf(FILE *f, char *format, ...)
+/* fprintf using html encoding types */
+#ifdef __GNUC__
+__attribute__((format(printf, 2, 3)))
+#endif
+;
+
+void htmlPrintf(char *format, ...)
+/* fprintf using html encoding types */
+#ifdef __GNUC__
+__attribute__((format(printf, 1, 2)))
+#endif
+;
+
+
+#endif /* HTMSHELL_H */

@@ -194,6 +194,10 @@ int hashElCmpWithEmbeddedNumbers(const void *va, const void *vb);
 /* Compare two hashEl by name sorting including numbers within name,
  * suitable for chromosomes, genes, etc. */
 
+int hashElCmpIntValDesc(const void *va, const void *vb);
+/* Compare two hashEl from a hashInt type hash, with highest integer values
+ * comingFirst. */
+
 void *hashElFindVal(struct hashEl *list, char *name);
 /* Look up name in hashEl list and return val or NULL if not found. */
 
@@ -229,12 +233,18 @@ struct hash *newHashExt(int powerOfTwoSize, boolean useLocalMem);
 /* Returns new hash table using local memory. */
 #define hashNew(a) newHash(a)	/* Synonym */
 
+void hashReverseAllBucketLists(struct hash *hash);
+/* Reverse all hash bucket list.  You might do this to
+ * get them back in the same order things were added to the hash */
+
 void hashResize(struct hash *hash, int powerOfTwoSize);
 /* Resize the hash to a new size */
 
 struct hash *hashFromSlNameList(void *list);
-/* Create a hash out of a list of slNames or any kind of list where the */
-/* first field is the next pointer and the second is the name. */
+/* Create a hash out of a list of slNames. */
+
+struct hash *hashSetFromSlNameList(void *list);
+/* Create a hashSet (hash without values) out of a list of slNames. */
 
 void freeHash(struct hash **pHash);
 /* Free up hash table. */
@@ -274,6 +284,16 @@ char *hashToRaString(struct hash *hash);
 
 int hashNumEntries(struct hash *hash);
 /* count the number of entries in a hash */
+
+struct hash *hashFromString(char *string);
+/* parse a whitespace-separated string with tuples in the format name=val or
+ * name="val" to a hash name->val */
+
+struct hash *hashFromNameArray(char **nameArray, int nameCount);
+/* Create a NULL valued hash on all names in array */
+
+struct hash *hashFromNameValArray(char *nameVal[][2], int nameValCount);
+/* Make up a hash from nameVal array */
 
 #endif /* HASH_H */
 

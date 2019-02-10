@@ -6,6 +6,7 @@
 #ifndef gff3_h
 #define gff3_h
 
+
 struct gff3Ann
 /* Annotation record from a GFF3 file.  Attributes define in the spec (those
  * starting with upper case letters) are parsed into fields of this
@@ -120,12 +121,14 @@ struct gff3Ann
 
     struct slName *notes;  /* free text notes. */
 
+    boolean isCircular;  /* is this item circular */
+
     struct slName *dbxrefs; /* database cross references. */
 
     struct slName *ontologyTerms; /* cross reference to ontology terms. */
 
     struct gff3Attr *attrs;  /* attributes, both user-define and spec-defined,
-                                  * parsed into one or more values */
+                              * parsed into one or more values */
 
     struct gff3AnnRef *children;  /* child nodes */
 
@@ -137,6 +140,10 @@ struct gff3Ann
     int lineNum;            /* line number of record in file, or -1
                              * if not known */
 };
+
+/* flags */
+#define GFF3_WARN_WHEN_POSSIBLE 0x01  // generate warnings and drop entries rather than errors
+
 
 struct gff3AnnRef
 /* A reference to a gff3Ann object */
@@ -150,7 +157,7 @@ struct gff3Attr
 {
     struct gff3Attr *next;     /* next attribute in the list */
     char *tag;                 /* name of attribute */
-   struct slName *vals;       /* values for the attribute */
+    struct slName *vals;       /* values for the attribute */
 };
 
 struct gff3SeqRegion
@@ -189,6 +196,7 @@ struct gff3File
                                           * NULL if none specified */
     struct lineFile *lf;                 /* only set while parsing */
     FILE *errFh;            /* write errors to this file */
+    unsigned int flags;     /* flags controlling parsing */
     int maxErr;             /* maximum number of errors before aborting */
     int errCnt;             /* error count */
 };
@@ -208,19 +216,30 @@ extern char *gff3AttrOntologyTerm;
 
 /* commonly used features names */
 extern char *gff3FeatGene;
+extern char *gff3FeatPseudogene;
 extern char *gff3FeatMRna;
+extern char *gff3FeatNCRna;
+extern char *gff3FeatRRna;
+extern char *gff3FeatTRna;
 extern char *gff3FeatExon;
 extern char *gff3FeatCDS;
 extern char *gff3FeatThreePrimeUTR;
 extern char *gff3FeatFivePrimeUTR;
 extern char *gff3FeatStartCodon;
 extern char *gff3FeatStopCodon;
+extern char *gff3FeatTranscript;
+extern char *gff3FeatPrimaryTranscript;
+extern char *gff3FeatCGeneSegment;
+extern char *gff3FeatDGeneSegment;
+extern char *gff3FeatJGeneSegment;
+extern char *gff3FeatVGeneSegment;
 
-struct gff3File *gff3FileOpen(char *fileName, int maxErr, FILE *errFh);
+
+struct gff3File *gff3FileOpen(char *fileName, int maxErr, unsigned flags, FILE *errFh);
 /* Parse a GFF3 file into a gff3File object.  If maxErr not zero, then
  * continue to parse until this number of error have been reached.  A maxErr
  * less than zero does not stop reports all errors. Write errors to errFh,
- * if NULL, use stderr. */
+ * if NULL, use stderr.  See above flags. */
 
 void gff3FileFree(struct gff3File **g3fPtr);
 /* Free a gff3File object */
@@ -230,6 +249,10 @@ struct gff3Ann *gff3FileFindAnn(struct gff3File *g3f, char *id);
 
 struct gff3Attr *gff3AnnFindAttr(struct gff3Ann *g3a, char *tag);
 /* find a user attribute, or NULL */
+
+void gff3AnnWrite(struct gff3Ann *g3a, FILE *fh);
+/* Write an annotation record to the specified file.
+ * This only writes a single record, it is not recursive.*/
 
 void gff3FileWrite(struct gff3File *g3f, char *fileName);
 /* write contents of an GFF3File object to a file */
@@ -246,6 +269,14 @@ return ref;
 
 int gff3AnnRefLocCmp(const void *va, const void *vb);
 /* sort compare function for location of two gff3AnnRef objects */
+
+void gff3UnlinkChild(struct gff3Ann *g3a,
+                     struct gff3Ann *child);
+/* unlink the child from it's parent (do not free) */
+
+void gff3LinkChild(struct gff3Ann *g3a,
+                    struct gff3Ann *child);
+/* Add a child to a parent */
 
 INLINE int gff3PhaseToFrame(int phase)
 /* convert a phase to a frame */

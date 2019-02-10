@@ -36,11 +36,12 @@ struct bed
     int expCount;	/* Experiment count */
     int *expIds;		/* Comma separated list of Experiment ids */
     float *expScores;	/* Comma separated list of Experiment scores. */
+    char *label;        /* Label to use on element if bigBed. */
     };
 
 #define bedKnownFields 15	/* Maximum known fields in bed */
 
-#define BB_MAX_CHROM_STRING 32  /* Maximum string length for chromosome length */
+#define BB_MAX_CHROM_STRING 255  /* Maximum string length for chromosome length */
 
 struct bed3
 /* Browser extensible data - first three fields */
@@ -54,6 +55,18 @@ struct bed3
 struct bed3 *bed3New(char *chrom, int start, int end);
 /* Make new bed3. */
 
+void bed3Free(struct bed3 **pBed);
+/* Free up bed3 */
+
+void bed3FreeList(struct bed3 **pList);
+/* Free a list of dynamically allocated bed3's */
+
+struct bed3 *bed3LoadAll(char *fileName);
+/* Load three columns from file as bed3. */
+
+long long bed3TotalSize(struct bed3 *bedList);
+/* Return sum of chromEnd-chromStart. */
+
 struct bed4
 /* Browser extensible data - first four fields */
     {
@@ -64,6 +77,15 @@ struct bed4
     char *name;	/* Name of item */
     };
 
+
+struct bed4 *bed4New(char *chrom, int start, int end, char *name);
+/* Make new bed4. */
+
+void bed4Free(struct bed4 **pBed);
+/* Free up bed4 */
+
+void bed4FreeList(struct bed4 **pList);
+/* Free a list of dynamically allocated bed4's */
 
 void bedStaticLoad(char **row, struct bed *ret);
 /* Load a row from bed table into ret.  The contents of ret will
@@ -114,6 +136,9 @@ int bedCmpSize(const void *va, const void *vb);
 
 int bedCmpChromStrandStart(const void *va, const void *vb);
 /* Compare to sort based on chrom,strand,chromStart. */
+
+int bedCmpChromStrandStartName(const void *va, const void *vb);
+/* Compare to sort based on name, chrom,strand,chromStart. */
 
 struct bedLine
 /* A line in a bed file with chromosome, start position parsed out. */
@@ -170,12 +195,22 @@ void bedLoadAllReturnFieldCount(char *fileName, struct bed **retList, int *retFi
 /* Load bed of unknown size and return number of fields as well as list of bed items.
  * Ensures that all lines in bed file have same field count. */
 
+void bedLoadAllReturnFieldCountAndRgb(char *fileName, struct bed **retList, int *retFieldCount, 
+    boolean *retRgb);
+/* Load bed of unknown size and return number of fields as well as list of bed items.
+ * Ensures that all lines in bed file have same field count.  Also returns whether 
+ * column 9 is being used as RGB or not. */
+
 void bedOutputN(struct bed *el, int wordCount, FILE *f, char sep, char lastSep);
 /* Write a bed of wordCount fields. */
 
 void bedOutputNitemRgb(struct bed *el, int wordCount, FILE *f,
 	char sep, char lastSep);
 /* Write a bed of wordCount fields, interpret column 9 as RGB. */
+
+void bedOutFlexible(struct bed *el, int wordCount, FILE *f,
+	char sep, char lastSep, boolean useItemRgb);
+/* Write a bed of wordCount fields, optionally interpreting field nine as R,G,B values. */
 
 #define bedTabOutNitemRgb(el,wordCount, f) bedOutputNitemRgb(el,wordCount,f,'\t','\n')
 /* Print out bed as a line in a tab-separated file. Interpret
@@ -234,6 +269,14 @@ struct hash *readBedToBinKeeper(char *sizeFileName, char *bedFileName, int wordC
 int bedParseRgb(char *itemRgb);
 /*	parse a string: "r,g,b" into three unsigned char values
 	returned as 24 bit number, or -1 for failure */
+
+int bedParseColor(char *colorSpec);
+/* Parse an HTML color string, a  string of 3 comma-sep unsigned color values 0-255, 
+ * or a 6-digit hex string  preceded by #. 
+ * O/w return unsigned integer value.  Return -1 on error */
+
+void bedOutputRgb(FILE *f, unsigned int color);
+/*      Output a string: "r,g,b" for 24 bit number */
 
 long long bedTotalSize(struct bed *bedList);
 /* Add together sizes of all beds in list. */

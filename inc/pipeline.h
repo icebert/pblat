@@ -38,8 +38,7 @@
  *        {
  *        ...
  *        }
- *    pipelineWait(pl);
- *    pipelineFree(&pl);
+ *    pipelineClose(&pl);
  *
  * A similar example that generates data and writes a compressed file, sorting
  * it numerically by the first column:
@@ -55,8 +54,7 @@
  *    while ((line = makeNextRow()) != NULL)
  *        fprintf(fh, "%s\n", line);
  *    
- *    pipelineWait(pl);
- *    pipelineFree(&pl);
+ *    pipelineClose(&pl);
  *
  * To append to an output file, use pipelineWrite|pipelineAppend:
  *    
@@ -76,9 +74,10 @@ enum pipelineOpts
     pipelineNoAbort    = 0x04, /* don't abort if a process exits non-zero,
                                 * wait will return exit code instead.
                                 * Still aborts if process signals. */
+    pipelineMemInput   = 0x08, /* pipeline takes input from memory (internal) */
     pipelineAppend     = 0x10, /* Append to output file (used only with pipelineWrite) */
-    /* these are internal options */
-    pipelineMemInput   = 0x08  /* pipeline takes input from memory */
+    pipelineSigpipe    = 0x20  /* enable sigpipe in the children and don't treat
+                                  as an error in the parent */
     };
 
 struct pipeline *pipelineOpenFd(char ***cmds, unsigned opts,
@@ -145,6 +144,10 @@ int pipelineWait(struct pipeline *pl);
 
 void pipelineFree(struct pipeline **plPtr);
 /* free a pipeline object */
+
+int pipelineClose(struct pipeline **pPl);
+/* Wait for pipeline to finish and free it. Same as pipelineWait then pipelineClose.
+ * Returns pipelineWait result (normally 0). */
 
 #endif
 /*

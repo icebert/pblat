@@ -10,6 +10,16 @@
 #include "linefile.h"
 #include "dystring.h"
 
+#define DEFAULTCONNECTTIMEOUTMSEC 10000  /* default connect timeout for tcp in milliseconds */
+#define DEFAULTREADWRITETTIMEOUTSEC 120  /* default read/write timeout for tcp in seconds */
+#define MAXURLSIZE 4096 /* maximum size in characters for a URL, but also see the struct netParsedUrl definition */
+
+int setReadWriteTimeouts(int sd, int seconds);
+/* Set read and write timeouts on socket sd 
+ * Return -1 if there are any errors, 0 if successful. */
+
+/* add a failure to connFailures[]
+ *  which can save time and avoid more timeouts */
 int netConnect(char *hostName, int port);
 /* Start connection with a server having resolved port. Return < 0 if error. */
 
@@ -39,14 +49,18 @@ FILE *netFileFromSocket(int socket);
 /* Wrap a FILE around socket.  This should be fclose'd
  * and separately the socket close'd. */
 
+int netWaitForData(int sd, int microseconds);
+/* Wait for descriptor to have some data to read, up to given number of
+ * microseconds.  Returns amount of data there or zero if timed out. */
+
 void netBlockBrokenPipes();
 /* Make it so a broken pipe doesn't kill us. */
 
-size_t netReadAll(int sd, void *vBuf, size_t size);
+ssize_t netReadAll(int sd, void *vBuf, ssize_t size);
 /* Read given number of bytes into buffer.
  * Don't give up on first read! */
 
-int netMustReadAll(int sd, void *vBuf, size_t size);
+ssize_t netMustReadAll(int sd, void *vBuf, ssize_t size);
 /* Read given number of bytes into buffer or die.
  * Don't give up if first read is short! */
 
@@ -103,11 +117,11 @@ struct netParsedUrl
 /* A parsed URL. */
    {
    char protocol[16];	/* Protocol - http or ftp, etc. */
-   char user[128];	/* User name (optional)  */
-   char password[128];	/* Password  (optional)  */
-   char host[128];	/* Name of host computer - www.yahoo.com, etc. */
+   char user[2048];	/* User name (optional)  */
+   char password[2048];	/* Password  (optional)  */
+   char host[2048];	/* Name of host computer - www.yahoo.com, etc. */
    char port[16];       /* Port, usually 80 or 8080. */
-   char file[1024];	/* Remote file name/query string, starts with '/' */
+   char file[4096];	/* Remote file name/query string, starts with '/' */
    ssize_t byteRangeStart; /* Start of byte range, use -1 for none */
    ssize_t byteRangeEnd;   /* End of byte range use -1 for none */
    };
@@ -124,7 +138,15 @@ char *urlFromNetParsedUrl(struct netParsedUrl *npu);
 
 int netUrlOpen(char *url);
 /* Return socket descriptor (low-level file handle) for read()ing url data,
- * or -1 if error.  Just close(result) when done. */
+ * or -1 if error.  Just close(result) when done. Errors from this routine
+ * from web urls are rare, because this just opens up enough to read header,
+ * which may just say "file not found." Consider using netUrlMustOpenPastHeader
+ * instead .*/
+
+int netUrlMustOpenPastHeader(char *url);
+/* Get socket descriptor for URL.  Process header, handling any forwarding and
+ * the like.  Do errAbort if there's a problem, which includes anything but a 200
+ * return from http after forwarding. */
 
 int netUrlOpenSockets(char *url, int *retCtrlSocket);
 /* Return socket descriptor (low-level file handle) for read()ing url data,
@@ -147,9 +169,9 @@ int netUrlHead(char *url, struct hash *hash);
  * lines with upper cased keywords for case-insensitive lookup, 
  * including hopefully CONTENT-TYPE: . */
 
-long long netUrlSizeByRangeResponse(char *url);
-/* Use byteRange as a work-around alternate method to get file size (content-length).  
- * Return negative number if can't get. */
+int netUrlFakeHeadByGet(char *url, struct hash *hash);
+/* Use GET with byteRange as an alternate method to HEAD. 
+ * Return status. */
 
 struct lineFile *netLineFileOpen(char *url);
 /* Return a lineFile attached to url.  This one
@@ -188,6 +210,12 @@ int netOpenHttpExt(char *url, char *method, char *optionalHeader);
 /* Return a file handle that will read the url.  optionalHeader
  * may by NULL or may contain cookies and other info. */
 
+void setAuthorization(struct netParsedUrl npu, char *authHeader, struct dyString *dy);
+/* Set the specified authorization header with BASIC auth base64-encoded user and password */
+
+boolean checkNoProxy(char *host);
+/* See if host endsWith element on no_proxy list. */
+
 int netHttpConnect(char *url, char *method, char *protocol, char *agent, char *optionalHeader);
 /* Parse URL, connect to associated server on port, and send most of
  * the request to the server.  If specified in the url send user name
@@ -209,6 +237,9 @@ int netHttpGetMultiple(char *url, struct slName *queries, void *userData,
  * until we can't connect or until all requests have been served. 
  * For each HTTP response, do a callback. */
 
+char *transferParamsToRedirectedUrl(char *url, char *newUrl);
+/* Transfer password, byteRange, and any other parameters from url to newUrl and return result.
+ * freeMem result. */
 
 boolean netSkipHttpHeaderLinesWithRedirect(int sd, char *url, char **redirectedUrl);
 /* Skip http header lines. Return FALSE if there's a problem.
@@ -240,9 +271,7 @@ boolean netSkipHttpHeaderLinesHandlingRedirect(int sd, char *url, int *redirecte
 boolean netGetFtpInfo(char *url, long long *retSize, time_t *retTime);
 /* Return date in UTC and size of ftp url file */
 
-
-boolean parallelFetch(char *url, char *outPath, int numConnections, int numRetries, boolean newer, boolean progress);
-/* Open multiple parallel connections to URL to speed downloading */
-
+boolean hasProtocol(char *urlOrPath);
+/* Return TRUE if it looks like it has http://, ftp:// etc. */
 #endif /* NET_H */
 

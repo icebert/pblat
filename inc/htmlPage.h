@@ -47,7 +47,7 @@ struct htmlAttribute
     };
 
 struct htmlTag
-/* A html tag - includes attribute list and parent, but no text. */
+/* A html tag - includes attribute list and tag name parsed out, pointers to unparsed text. */
     {
     struct htmlTag *next;
     char *name;	/* Tag name. */
@@ -178,6 +178,11 @@ void htmlPageFree(struct htmlPage **pPage);
 void htmlPageFreeList(struct htmlPage **pList);
 /* Free a list of dynamically allocated htmlPage's */
 
+char *expandUrlOnBase(char *base, char *url);
+/* Figure out first character past host name. Load up
+ * return string with protocol (if any) and host name. 
+ * It is assumed that url is relative to base and does not contain a protocol.*/
+
 char *htmlExpandUrl(char *base, char *url);
 /* Expand URL that is relative to base to stand on it's own. 
  * Return NULL if it's not http or https. */
@@ -200,6 +205,9 @@ void htmlPageFormOrAbort(struct htmlPage *page);
 
 void htmlPageValidateOrAbort(struct htmlPage *page);
 /* Do some basic validations.  Aborts if there is a problem. */
+
+void htmlPageStrictTagNestCheck(struct htmlPage *page);
+/* Do strict tag nesting check.  Aborts if there is a problem. */
 
 char *htmlSlurpWithCookies(char *url, struct htmlCookie *cookies);
 /* Send get message to url with cookies, and return full response as
@@ -235,5 +243,13 @@ struct htmlPage *htmlPageForwarded(char *url, struct htmlCookie *cookies);
 
 struct htmlPage *htmlPageForwardedNoAbort(char *url, struct htmlCookie *cookies);
 /* Try and get an HTML page.  Print warning and return NULL if there's a problem. */
+
+struct htmlTag *findNextMatchingTag(struct htmlTag *list, char *name);
+/* Return first tag in list that is of type name or NULL if not found. */
+
+boolean isSelfClosingTag(struct htmlTag *tag);
+/* Return strue if last attributes' name is "/" 
+ * Self-closing tags are used with html5 and SGV */
+
 #endif /* HTMLPAGE_H */
 

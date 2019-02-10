@@ -89,6 +89,11 @@ void reverseIntRange(int *pStart, int *pEnd, int size);
  * to opposite strand. */
 void reverseUnsignedRange(unsigned *pStart, unsigned *pEnd, int size); 
 
+char *reverseComplementSlashSeparated(char *alleleStr);
+/* Given a slash-separated series of sequences (a common representation of variant alleles),
+ * returns a slash-sep series with the reverse complement of each sequence (if it is a
+ * nucleotide sequence), also reversing the order of sequences. */
+
 enum dnaCase {dnaUpper,dnaLower,dnaMixed,};
 /* DNA upper, lower, or mixed case? */
 
@@ -104,6 +109,8 @@ typedef char Codon; /* Our codon type. */
  * Returns X for bad input, 0 for stop codon.
  * The "Standard" Code */
 AA lookupCodon(DNA *dna); 
+
+AA lookupUniqCodon(DNA *dna);
 
 boolean isStopCodon(DNA *dna);
 /* Return TRUE if it's a stop codon. */
@@ -252,9 +259,20 @@ int maskHeadPolyT(DNA *dna, int size);
  * trimmed too.  Returns number of bases trimmed.  */
 
 boolean isDna(char *poly, int size);
-/* Return TRUE if letters in poly are at least 90% ACGTU */
+/* Return TRUE if letters in poly are at least 90% ACGTNU- */
 
-boolean isAllDna(char *poly, int size);
-/* Return TRUE if letters in poly are 100% ACGTU */
+boolean isAllNt(char *seq, int size);
+/* Return TRUE if all letters in seq are ACGTNU-. */
+
+char aaAbbrToLetter(char *abbr);
+/* Convert an AA abbreviation such as "Ala", "Asp" etc., to its single letter code
+ * such as "A", "D" etc.  Return the null char '\0' if abbr is not found. */
+
+void aaToAbbr(char aa, char *abbrBuf, size_t abbrBufSize);
+/* Convert an AA single letter such as "A", "D" etc. to its abbreviation such as "Ala", "Asp" etc.
+ * abbrBufSize must be at least 4.  If aa is not found, "?%c?",aa is written into abbrBuf. */
+
+void trimRefAlt(char *ref, char *alt, uint *pStart, uint *pEnd, int *pRefLen, int *pAltLen);
+/* If ref and alt have identical bases at beginning and/or end, trim those & update all params. */
 
 #endif /* DNAUTIL_H */
