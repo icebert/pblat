@@ -3,6 +3,9 @@
  * http://www.1000genomes.org/wiki/Analysis/Variant%20Call%20Format/vcf-variant-call-format-version-41
  */
 
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "dnautil.h"
 #include "errAbort.h"
@@ -45,10 +48,12 @@ const char *vcfGtGenotype = "GT";	// Integer allele indices separated by "/" (un
 					// 2 for the second allele in ALT and so on.
 const char *vcfGtDepth = "DP";		// Read depth at this position for this sample
 const char *vcfGtFilter = "FT";		// Analogous to variant's FILTER field
-const char *vcfGtLikelihoods = "GL";	// Three floating point log10-scaled likelihoods for
-					// AA,AB,BB genotypes where A=ref and B=alt;
-					// not applicable if site is not biallelic.
+const char *vcfGtLikelihoods = "GL";	// Floating point log10-scaled likelihoods for genotypes.
+					// If bi-allelic, order of genotypes is AA,AB,BB
+					// where A=ref and B=alt.
+					// If tri-allelic, AA,AB,BB,AC,BC,CC.
 const char *vcfGtPhred = "PL";		// Phred-scaled genotype likelihoods rounded to closest int
+					// Same ordering as GL
 const char *vcfGtConditionalQual = "GQ";// Conditional genotype quality
 					// i.e. phred quality -10log_10 P(genotype call is wrong,
 					// conditioned on the site's being variant)
@@ -165,53 +170,71 @@ __attribute__((format(printf, 2, 3)))
 #endif
 ;
 
-static void vcfFileErr(struct vcfFile *vcff, char *format, ...)
+static void vaVcfWarn(struct vcfFile *vcff, char *format, va_list args)
+/* Add a little bit of info like file position to warning */
+{
+if (vcff->lf != NULL)
+    {
+    char formatPlus[1024];
+    safef(formatPlus, sizeof(formatPlus), 
+	"%s:%d: %s", vcff->lf->fileName, vcff->lf->lineIx, format);
+    vaWarn(formatPlus, args);
+    }
+else
+    vaWarn(format, args);
+}
+
+static void vcfFileWarn(struct vcfFile *vcff, char *format, ...)
 /* Send error message to errabort stack's warn handler and abort */
 {
 va_list args;
 va_start(args, format);
-char formatPlus[1024];
-if (vcff->lf != NULL)
-    sprintf(formatPlus, "%s:%d: %s", vcff->lf->fileName, vcff->lf->lineIx, format);
-else
-    strcpy(formatPlus, format);
-vaWarn(formatPlus, args);
-va_end(args);
+vaVcfWarn(vcff, format, args);
+}
+
+static void vcfFileErr(struct vcfFile *vcff, char *format, ...)
+/* Send error message to errabort stack's warn handler and abort */
+{
 vcff->errCnt++;
+if (vcff->maxErr == VCF_IGNORE_ERRS)
+    return;
+va_list args;
+va_start(args, format);
+vaVcfWarn(vcff, format, args);
 if (vcfFileStopDueToErrors(vcff))
     errAbort("VCF: %d parser errors, quitting", vcff->errCnt);
 }
 
 static void *vcfFileAlloc(struct vcfFile *vcff, size_t size)
-/* allocate memory from the memory pool */
+/* Use vcff's local mem to allocate memory. */
 {
-return lmAlloc(vcff->pool->lm, size);
+return lmAlloc( vcfFileLm(vcff), size);
 }
 
-static char *vcfFileCloneStrZ(struct vcfFile *vcff, char *str, size_t size)
-/* allocate memory for a string and copy it */
+INLINE char *vcfFileCloneStrZ(struct vcfFile *vcff, char *str, size_t size)
+/* Use vcff's local mem to allocate memory for a string and copy it. */
 {
-return lmCloneStringZ(vcff->pool->lm, str, size);
+return lmCloneStringZ( vcfFileLm(vcff), str, size);
 }
 
-static char *vcfFileCloneStr(struct vcfFile *vcff, char *str)
-/* allocate memory for a string and copy it */
+INLINE char *vcfFileCloneStr(struct vcfFile *vcff, char *str)
+/* Use vcff's local mem to allocate memory for a string and copy it. */
 {
 return vcfFileCloneStrZ(vcff, str, strlen(str));
 }
 
-static char *vcfFileCloneSubstr(struct vcfFile *vcff, char *line, regmatch_t substr)
+INLINE char *vcfFileCloneSubstr(struct vcfFile *vcff, char *line, regmatch_t substr)
 /* Allocate memory for and copy a substring of line. */
 {
 return vcfFileCloneStrZ(vcff, line+substr.rm_so, (substr.rm_eo - substr.rm_so));
 }
 
-#define vcfFileCloneVar(var) lmCloneMem(vcff->pool->lm, var, sizeof(var));
+#define vcfFileCloneVar(vcff, var) lmCloneMem( vcfFileLm(vcff), var, sizeof(var))
 
-static char *vcfFilePooledStr(struct vcfFile *vcff, char *str)
-/* allocate memory for a string from the shared string pool */
+char *vcfFilePooledStr(struct vcfFile *vcff, char *str)
+/* Allocate memory for a string from vcff's shared string pool. */
 {
-return hashStoreName(vcff->pool, str);
+return hashStoreName(vcff->pool, str);  // Always stored in main pool, not reuse pool
 }
 
 static enum vcfInfoType vcfInfoTypeFromSubstr(struct vcfFile *vcff, char *line, regmatch_t substr)
@@ -222,7 +245,7 @@ int substrLen = substr.rm_eo - substr.rm_so;
 if (substrLen > sizeof(typeWord) - 1)
     {
     vcfFileErr(vcff, "substring passed to vcfInfoTypeFromSubstr is too long.");
-    return vcfInfoNoType;
+    return vcfInfoString;
     }
 safencpy(typeWord, sizeof(typeWord), line + substr.rm_so, substrLen);
 if (sameString("Integer", typeWord))
@@ -236,15 +259,15 @@ if (sameString("Character", typeWord))
 if (sameString("String", typeWord))
     return vcfInfoString;
 vcfFileErr(vcff, "Unrecognized type word \"%s\" in metadata line \"%s\"", typeWord, line);
-return vcfInfoNoType;
+return vcfInfoString;
 }
 
 // Regular expressions to check format and extract information from header lines:
 static const char *fileformatRegex = "^##(file)?format=VCFv([0-9]+)(\\.([0-9]+))?$";
 static const char *infoOrFormatRegex =
     "^##(INFO|FORMAT)="
-    "<ID=([A-Za-z0-9_:-]+),"
-    "Number=(\\.|A|G|[0-9-]+),"
+    "<ID=([\\.+A-Za-z0-9_:-]+),"
+    "Number=([\\.AGR]|[0-9-]+),"
     "Type=([A-Za-z]+),"
     "Description=\"?(.*)\"?>$";
 static const char *filterOrAltRegex =
@@ -280,7 +303,9 @@ ptr += 2;
 char *firstEq = strchr(ptr, '=');
 if (firstEq == NULL)
     {
-    vcfFileErr(vcff, "Metadata line lacks '=': \"%s\"", line);
+    if (vcff->majorVersion > 4 ||
+	(vcff->majorVersion == 4 && vcff->minorVersion > 0))
+	vcfFileErr(vcff, "Metadata line lacks '=': \"%s\"", line);
     return;
     }
 regmatch_t substrs[8];
@@ -322,6 +347,10 @@ else if (startsWith("##INFO=", line) || startsWith("##FORMAT=", line))
 	if (line[substrs[5].rm_eo-1] == '"')
 	    line[substrs[5].rm_eo-1] = '\0';
 	def->description = vcfFileCloneSubstr(vcff, line, substrs[5]);
+        char *p = NULL;
+        if ((p = strstr(def->description, "\",Source=\"")) ||
+            (p = strstr(def->description, "\",Version=\"")))
+            *p = '\0';
 	slAddHead((isInfo ? &(vcff->infoDefs) : &(vcff->gtFormatDefs)), def);
 	}
     else
@@ -337,6 +366,9 @@ else if (startsWith("##FILTER=", line) || startsWith("##ALT=", line))
 	// substrs[2] is ID/key, substrs[4] is Description.
 	struct vcfInfoDef *def = vcfFileAlloc(vcff, sizeof(struct vcfInfoDef));
 	def->key = vcfFileCloneSubstr(vcff, line, substrs[2]);
+	// greedy regex pulls in end quote, trim if found:
+	if (line[substrs[4].rm_eo-1] == '"')
+	    line[substrs[4].rm_eo-1] = '\0';
 	def->description = vcfFileCloneSubstr(vcff, line, substrs[4]);
 	slAddHead((isFilter ? &(vcff->filterDefs) : &(vcff->altDefs)), def);
 	}
@@ -372,16 +404,12 @@ if (! sameString(exp1, words[ix]))
 // There might be a whole lot of genotype columns...
 #define VCF_MAX_COLUMNS 16 * 1024
 
+char *vcfDefaultHeader = "#CHROM POS ID REF ALT QUAL FILTER INFO";
+/* Default header if we have none. */
+
 static void parseColumnHeaderRow(struct vcfFile *vcff, char *line)
 /* Make sure column names are as we expect, and store genotype sample IDs if any are given. */
 {
-if (line[0] != '#')
-    {
-    vcfFileErr(vcff, "Expected to find # followed by column names (\"#CHROM POS ...\"), "
-	       "not \"%s\"", line);
-    lineFileReuse(vcff->lf);
-    return;
-    }
 char *words[VCF_MAX_COLUMNS];
 int wordCount = chopLine(line+1, words);
 if (wordCount >= VCF_MAX_COLUMNS)
@@ -408,19 +436,45 @@ if (wordCount > 8)
     }
 }
 
-static struct vcfFile *vcfFileNew()
+struct vcfFile *vcfFileNew()
 /* Return a new, empty vcfFile object. */
 {
 struct vcfFile *vcff = NULL;
 AllocVar(vcff);
 vcff->pool = hashNew(0);
+vcff->reusePool = NULL;  // Must explicitly request a separate record pool
 return vcff;
+}
+
+void vcfFileMakeReusePool(struct vcfFile *vcff, int initialSize)
+// Creates a separate memory pool for records.  Establishing this pool allows
+// using vcfFileFlushRecords to abandon previously read records and free
+// the associated memory. Very useful when reading an entire file in batches.
+{
+assert(vcff->reusePool == NULL); // don't duplicate this
+vcff->reusePool = lmInit(initialSize);
+}
+
+void vcfFileFlushRecords(struct vcfFile *vcff)
+// Abandons all previously read vcff->records and flushes the reuse pool (if it exists).
+// USE WITH CAUTION.  All previously allocated record pointers are now invalid.
+{
+if (vcff->reusePool != NULL)
+    {
+    size_t poolSize = lmSize(vcff->reusePool);
+    //if (poolSize > (48 * 1024 * 1024))
+    //    printf("\nReuse pool %ld of %ld unused\n",lmAvailable(vcff->reusePool),poolSize);
+    lmCleanup(&vcff->reusePool);
+    vcff->reusePool = lmInit(poolSize);
+    }
+vcff->records = NULL;
 }
 
 static struct vcfFile *vcfFileHeaderFromLineFile(struct lineFile *lf, int maxErr)
 /* Parse a VCF file into a vcfFile object.  If maxErr not zero, then
  * continue to parse until this number of error have been reached.  A maxErr
- * less than zero does not stop and reports all errors. */
+ * less than zero does not stop and reports all errors.
+ * Set maxErr to VCF_IGNORE_ERRS for silence */
 {
 initVcfSpecInfoDefs();
 initVcfSpecGtFormatDefs();
@@ -445,15 +499,28 @@ slReverse(&(vcff->filterDefs));
 slReverse(&(vcff->gtFormatDefs));
 // Did we get the bare minimum VCF header with supported version?
 if (vcff->majorVersion == 0)
-    vcfFileErr(vcff, "missing ##fileformat= header line?  Assuming 4.1.");
-if ((vcff->majorVersion != 4 || (vcff->minorVersion != 0 && vcff->minorVersion != 1)) &&
+    {
+    vcfFileWarn(vcff, "missing ##fileformat= header line?  Assuming 4.1.");
+    vcff->majorVersion = 4;
+    vcff->minorVersion = 1;
+    }
+if ((vcff->majorVersion != 4 || vcff->minorVersion < 0 || vcff->minorVersion > 2) &&
     (vcff->majorVersion != 3))
-    vcfFileErr(vcff, "VCFv%d.%d not supported -- only v3.*, v4.0 or v4.1",
+    vcfFileErr(vcff, "VCFv%d.%d not supported -- only v3.*, v4.0, v4.1 or v4.2",
 	       vcff->majorVersion, vcff->minorVersion);
 // Next, one header line beginning with single "#" that names the columns:
 if (line == NULL)
     // EOF after metadata
     return vcff;
+char headerLineBuf[256];
+if (line[0] != '#')
+    {
+    lineFileReuse(lf);
+    vcfFileWarn(vcff, "Expected to find # followed by column names (\"#CHROM POS ...\"), "
+	       "assuming default VCF 4.1 columns");
+    safef(headerLineBuf, sizeof(headerLineBuf), "%s", vcfDefaultHeader);
+    line = headerLineBuf;
+    }
 dyStringAppend(dyHeader, line);
 dyStringAppendC(dyHeader, '\n');
 parseColumnHeaderRow(vcff, line);
@@ -461,8 +528,18 @@ vcff->headerString = dyStringCannibalize(&dyHeader);
 return vcff;
 }
 
+struct vcfFile *vcfFileFromHeader(char *name, char *headerString, int maxErr)
+/* Parse the VCF header string into a vcfFile object with no rows.
+ * name is for error reporting.
+ * If maxErr is non-negative then continue to parse until maxErr+1 errors have been found.
+ * A maxErr less than zero does not stop and reports all errors.
+ * Set maxErr to VCF_IGNORE_ERRS for silence. */
+{
+struct lineFile *lf = lineFileOnString(name, TRUE, cloneString(headerString));
+return vcfFileHeaderFromLineFile(lf, maxErr);
+}
 
-#define VCF_MAX_INFO 512
+#define VCF_MAX_INFO (4*1024)
 
 static void parseRefAndAlt(struct vcfFile *vcff, struct vcfRecord *record, char *ref, char *alt)
 /* Make an array of alleles, ref first, from the REF and comma-sep'd ALT columns.
@@ -525,13 +602,7 @@ static enum vcfInfoType typeForInfoKey(struct vcfFile *vcff, const char *key)
  * and failing that, from the keys reserved in the spec. */
 {
 struct vcfInfoDef *def = vcfInfoDefForKey(vcff, key);
-if (def == NULL)
-    {
-    vcfFileErr(vcff, "There is no INFO header defining \"%s\"", key);
-    // default to string so we can display value as-is:
-    return vcfInfoString;
-    }
-return def->type;
+return def ? def->type : vcfInfoString;
 }
 
 static int parseInfoValue(struct vcfRecord *record, char *infoKey, enum vcfInfoType type,
@@ -606,8 +677,11 @@ for (i = 0;  i < record->infoCount;  i++)
 	enum vcfInfoType type = typeForInfoKey(vcff, el->key);
 	if (type != vcfInfoFlag)
 	    {
-	    vcfFileErr(vcff, "Missing = after key in INFO element: \"%s\" (type=%d)",
-		       elStr, type);
+	    struct vcfInfoDef *def = vcfInfoDefForKey(vcff, el->key);
+	    // Complain only if we are expecting a particular number of values for this keyword:
+	    if (def != NULL && def->fieldCount >= 0)
+		vcfFileErr(vcff, "Missing = after key in INFO element: \"%s\" (type=%d)",
+			   elStr, type);
 	    if (type == vcfInfoString)
 		{
 		el->values = vcfFileAlloc(vcff, sizeof(union vcfDatum));
@@ -654,46 +728,253 @@ if (vcff->genotypeCount > 0)
 return record;
 }
 
+static int checkWordCount(struct vcfFile *vcff, char **words, int wordCount)
+// Compensate for error in 1000 Genomes Phase 1 file
+// ALL.chr21.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf.gz
+// which has some lines that have an extra "\t" at the end of line,
+// causing the wordCount to be too high by 1:
+{
+int expected = 8;
+if (vcff->genotypeCount > 0)
+    expected = 9 + vcff->genotypeCount;
+if (wordCount == expected+1 && words[expected][0] == '\0')
+    wordCount--;
+lineFileExpectWords(vcff->lf, expected, wordCount);
+return wordCount;
+}
+
 struct vcfRecord *vcfNextRecord(struct vcfFile *vcff)
 /* Parse the words in the next line from vcff into a vcfRecord. Return NULL at end of file.
  * Note: this does not store record in vcff->records! */
 {
 char *words[VCF_MAX_COLUMNS];
 int wordCount;
-if ((wordCount = lineFileChop(vcff->lf, words)) <= 0)
+if ((wordCount = lineFileChopTab(vcff->lf, words)) <= 0)
     return NULL;
-int expected = 8;
-if (vcff->genotypeCount > 0)
-    expected = 9 + vcff->genotypeCount;
-lineFileExpectWords(vcff->lf, expected, wordCount);
+wordCount = checkWordCount(vcff, words, wordCount);
 return vcfRecordFromRow(vcff, words);
 }
 
-static void vcfParseData(struct vcfFile *vcff, int maxRecords)
-/* Given a vcfFile into which the header has been parsed, and whose lineFile is positioned
- * at the beginning of a data row, parse and store all data rows from lineFile. */
+static boolean noAltAllele(char **alleles, int alleleCount)
+/* Return true if there is no alternate allele (missing value ".") or the given alternate allele
+ * is the same as the reference allele. */
+{
+return (alleleCount == 2 &&
+        (sameString(alleles[0], alleles[1]) || sameString(".", alleles[1])));
+}
+
+static boolean allelesHavePaddingBase(char **alleles, int alleleCount)
+/* Examine alleles to see if they either a) all start with the same base or
+ * b) include a symbolic or 0-length allele.  In either of those cases, there
+ * must be an initial padding base that we'll need to trim from non-symbolic
+ * alleles. */
+{
+if (sameString(alleles[0], "-"))
+    return FALSE;
+else if (noAltAllele(alleles, alleleCount))
+    // Don't trim assertion of no change (ref == alt)
+    return FALSE;
+boolean hasPaddingBase = TRUE;
+char firstBase = '\0';
+if (isAllNt(alleles[0], strlen(alleles[0])))
+    firstBase = alleles[0][0];
+int i;
+for (i = 1;  i < alleleCount;  i++)
+    {
+    if (sameString(alleles[i], "-"))
+        {
+        hasPaddingBase = FALSE;
+        break;
+        }
+    else if (isAllNt(alleles[i], strlen(alleles[i])))
+	{
+	if (firstBase == '\0')
+	    firstBase = alleles[i][0];
+	if (alleles[i][0] != firstBase)
+	    // Different first base implies unpadded alleles.
+	    hasPaddingBase = FALSE;
+	}
+    else if (sameString(alleles[i], "<X>") || sameString(alleles[i], "<*>"))
+        {
+        // Special case for samtools mpileup "<X>" or gVCF "<*>" (no alternate allele observed) --
+        // being symbolic doesn't make this an indel and ref base is not necessarily padded.
+        hasPaddingBase = FALSE;
+        }
+    else
+	{
+	// Symbolic ALT allele: Indel, so REF must have the padding base.
+	hasPaddingBase = TRUE;
+	break;
+	}
+    }
+return hasPaddingBase;
+}
+
+unsigned int vcfRecordTrimIndelLeftBase(struct vcfRecord *rec)
+/* For indels, VCF includes the left neighboring base; for example, if the alleles are
+ * AA/- following a G base, then the VCF record will start one base to the left and have
+ * "GAA" and "G" as the alleles.  Also, if any alt allele is symbolic (e.g. <DEL>) then
+ * the ref allele must have a padding base.
+ * That is not nice for display for two reasons:
+ * 1. Indels appear one base wider than their dbSNP entries.
+ * 2. In pgSnp display mode, the two alleles are always the same color.
+ * However, for hgTracks' mapBox we need the correct chromStart for identifying the
+ * record in hgc -- so return the original chromStart. */
+{
+unsigned int chromStartOrig = rec->chromStart;
+struct vcfFile *vcff = rec->file;
+if (rec->alleleCount > 1)
+    {
+    boolean hasPaddingBase = allelesHavePaddingBase(rec->alleles, rec->alleleCount);
+    if (hasPaddingBase)
+	{
+	rec->chromStart++;
+	int i;
+	for (i = 0;  i < rec->alleleCount;  i++)
+	    {
+	    if (rec->alleles[i][1] == '\0')
+		rec->alleles[i] = vcfFilePooledStr(vcff, "-");
+	    else if (isAllNt(rec->alleles[i], strlen(rec->alleles[i])))
+		rec->alleles[i] = vcfFilePooledStr(vcff, rec->alleles[i]+1);
+	    else // don't trim first character of symbolic allele
+		rec->alleles[i] = vcfFilePooledStr(vcff, rec->alleles[i]);
+	    }
+	}
+    }
+return chromStartOrig;
+}
+
+static boolean allEndsGEStartsAndIdentical(char **starts, char **ends, int count)
+/* Given two arrays with <count> elements, return true if all strings in ends[] are
+ * greater than or equal to the corresponding strings in starts[], and all ends[]
+ * have the same char. */
+{
+int i;
+char refEnd = ends[0][0];
+for (i = 0;  i < count;  i++)
+    {
+    if (ends[i] < starts[i] || ends[i][0] != refEnd)
+	return FALSE;
+    }
+return TRUE;
+}
+
+static int countIdenticalBasesRight(char **alleles, int alCount)
+/* Return the number of bases that are identical at the end of each allele (usually 0). */
+{
+if (noAltAllele(alleles, alCount))
+    // Don't trim assertion of no change (ref == alt)
+    return 0;
+char *alleleEnds[alCount];
+int i;
+for (i = 0;  i < alCount;  i++)
+    {
+    int alLen = strlen(alleles[i]);
+    // If any allele is symbolic, don't try to trim.
+    if (sameString(alleles[i], "-") ||
+        !isAllNt(alleles[i], alLen))
+	return 0;
+    alleleEnds[i] = alleles[i] + alLen-1;
+    }
+int trimmedBases = 0;
+while (allEndsGEStartsAndIdentical(alleles, alleleEnds, alCount))
+    {
+    trimmedBases++;
+    // Trim identical last base of alleles and move alleleEnds[] items back.
+    for (i = 0;  i < alCount;  i++)
+	alleleEnds[i]--;
+    }
+return trimmedBases;
+}
+
+unsigned int vcfRecordTrimAllelesRight(struct vcfRecord *rec)
+/* Some tools output indels with extra base to the right, for example ref=ACC, alt=ACCC
+ * which should be ref=A, alt=AC.  When the extra bases make the variant extend from an
+ * intron (or gap) into an exon, it can cause a false appearance of a frameshift.
+ * To avoid this, when all alleles have identical base(s) at the end, trim all of them,
+ * and update rec->chromEnd.
+ * For hgTracks' mapBox we need the correct chromStart for identifying the record in hgc,
+ * so return the original chromEnd. */
+{
+unsigned int chromEndOrig = rec->chromEnd;
+int alCount = rec->alleleCount;
+char **alleles = rec->alleles;
+int trimmedBases = countIdenticalBasesRight(alleles, alCount);
+if (trimmedBases > 0)
+    {
+    struct vcfFile *vcff = rec->file;
+    // Allocate new pooled strings for the trimmed alleles.
+    int i;
+    for (i = 0;  i < alCount;  i++)
+	{
+	int alLen = strlen(alleles[i]); // alLen >= trimmedBases > 0
+	char trimmed[alLen+1];
+	safencpy(trimmed, sizeof(trimmed), alleles[i], alLen - trimmedBases);
+	if (isEmpty(trimmed))
+	    safencpy(trimmed, sizeof(trimmed), "-", 1);
+	alleles[i] = vcfFilePooledStr(vcff, trimmed);
+	}
+    rec->chromEnd -= trimmedBases;
+    }
+return chromEndOrig;
+}
+
+static boolean chromsMatch(char *chromA, char *chromB)
+// Return TRUE if chromA and chromB are non-NULL and identical, possibly ignoring
+// "chr" at the beginning of one but not the other.
+{
+if (chromA == NULL || chromB == NULL)
+    return FALSE;
+char *chromAPlus = startsWith("chr", chromA) ? chromA+3 : chromA;
+char *chromBPlus = startsWith("chr", chromB) ? chromB+3 : chromB;
+return sameString(chromAPlus, chromBPlus);
+}
+
+static struct vcfRecord *vcfParseData(struct vcfFile *vcff, char *chrom, int start, int end,
+				      int maxRecords)
+// Given a vcfFile into which the header has been parsed, and whose
+// lineFile is positioned at the beginning of a data row, parse and
+// return all data rows (in region, if chrom is non-NULL) from lineFile,
+// up to maxRecords.
 {
 if (vcff == NULL)
-    return;
+    return NULL;
 int recCount = 0;
+struct vcfRecord *records = NULL;
 struct vcfRecord *record;
 while ((record = vcfNextRecord(vcff)) != NULL)
     {
     if (maxRecords >= 0 && recCount >= maxRecords)
-	break;
-    slAddHead(&(vcff->records), record);
-    recCount++;
+        break;
+    if (chrom == NULL)
+	{
+	slAddHead(&records, record);
+	recCount++;
+	}
+    else if (chromsMatch(chrom, record->chrom))
+	{
+	if (end > 0 && record->chromStart >= end)
+	    break;
+	else if (record->chromEnd > start)
+	    {
+	    slAddHead(&records, record);
+	    recCount++;
+	    }
+	}
     }
-slReverse(&(vcff->records));
-lineFileClose(&(vcff->lf));
+slReverse(&records);
+return records;
 }
 
-struct vcfFile *vcfFileMayOpen(char *fileOrUrl, int maxErr, int maxRecords, boolean parseAll)
+struct vcfFile *vcfFileMayOpen(char *fileOrUrl, char *chrom, int start, int end,
+			       int maxErr, int maxRecords, boolean parseAll)
 /* Open fileOrUrl and parse VCF header; return NULL if unable.
- * If parseAll, then read in all lines, parse and store in
+ * If chrom is non-NULL, scan past any variants that precede {chrom, chromStart}.
+ * Note: this is very inefficient -- it's better to use vcfTabix if possible!
+ * If parseAll, then read in all lines in region, parse and store in
  * vcff->records; if maxErr >= zero, then continue to parse until
  * there are maxErr+1 errors.  A maxErr less than zero does not stop
- * and reports all errors. */
+ * and reports all errors. Set maxErr to VCF_IGNORE_ERRS for silence */
 {
 struct lineFile *lf = NULL;
 if (startsWith("http://", fileOrUrl) || startsWith("ftp://", fileOrUrl) ||
@@ -702,8 +983,34 @@ if (startsWith("http://", fileOrUrl) || startsWith("ftp://", fileOrUrl) ||
 else
     lf = lineFileMayOpen(fileOrUrl, TRUE);
 struct vcfFile *vcff = vcfFileHeaderFromLineFile(lf, maxErr);
-if (parseAll)
-    vcfParseData(vcff, maxRecords);
+if (vcff && chrom != NULL)
+    {
+    char *line = NULL;
+    while (lineFileNextReal(vcff->lf, &line))
+	{
+	char lineCopy[strlen(line)+1];
+	safecpy(lineCopy, sizeof(lineCopy), line);
+	char *words[VCF_MAX_COLUMNS];
+	int wordCount = chopTabs(lineCopy, words);
+	wordCount = checkWordCount(vcff, words, wordCount);
+	struct vcfRecord *record = vcfRecordFromRow(vcff, words);
+	if (chromsMatch(chrom, record->chrom))
+	    {
+	    if (record->chromEnd < start)
+		continue;
+	    else
+		{
+		lineFileReuse(vcff->lf);
+		break;
+		}
+	    }
+	}
+    }
+if (vcff && parseAll)
+    {
+    vcff->records = vcfParseData(vcff, chrom, start, end, maxRecords);
+    lineFileClose(&(vcff->lf)); // Not sure why it is closed.  Angie?
+    }
 return vcff;
 }
 
@@ -714,18 +1021,83 @@ struct vcfFile *vcfTabixFileMayOpen(char *fileOrUrl, char *chrom, int start, int
  * seek to the position range and parse all lines in range into
  * vcff->records.  If maxErr >= zero, then continue to parse until
  * there are maxErr+1 errors.  A maxErr less than zero does not stop
- * and reports all errors. */
+ * and reports all errors. Set maxErr to VCF_IGNORE_ERRS for silence */
 {
-struct lineFile *lf = lineFileTabixMayOpen(fileOrUrl, TRUE);
+return vcfTabixFileAndIndexMayOpen(fileOrUrl, NULL, chrom, start, end, maxErr, maxRecords);
+}
+
+struct vcfFile *vcfTabixFileAndIndexMayOpen(char *fileOrUrl, char *tbiFileOrUrl, char *chrom, int start, int end,
+				    int maxErr, int maxRecords)
+/* Open a VCF file that has been compressed and indexed by tabix and
+ * parse VCF header, or return NULL if unable. tbiFileOrUrl can be NULL.
+ * If chrom is non-NULL, seek to the position range and parse all lines in
+ * range into vcff->records.  If maxErr >= zero, then continue to parse until
+ * there are maxErr+1 errors.  A maxErr less than zero does not stop
+ * and reports all errors. Set maxErr to VCF_IGNORE_ERRS for silence */
+{
+struct lineFile *lf = lineFileTabixAndIndexMayOpen(fileOrUrl, tbiFileOrUrl, TRUE);
+if (lf == NULL)
+    return NULL;
 struct vcfFile *vcff = vcfFileHeaderFromLineFile(lf, maxErr);
 if (vcff == NULL)
     return NULL;
 if (isNotEmpty(chrom) && start != end)
     {
     if (lineFileSetTabixRegion(lf, chrom, start, end))
-	vcfParseData(vcff, maxRecords);
+        vcff->records = vcfParseData(vcff, NULL, 0, 0, maxRecords);
+    lineFileClose(&(vcff->lf)); // file is all read in so we close it
     }
+
 return vcff;
+}
+
+int vcfRecordCmp(const void *va, const void *vb)
+/* Compare to sort based on position. */
+{
+const struct vcfRecord *a = *((struct vcfRecord **)va);
+const struct vcfRecord *b = *((struct vcfRecord **)vb);
+int dif;
+dif = strcmp(a->chrom, b->chrom);
+if (dif == 0)
+    dif = a->chromStart - b->chromStart;
+if (dif == 0)
+    dif = a->chromEnd - b->chromEnd; // shortest first
+if (dif == 0)
+    dif = strcmp(a->name, b->name);  // finally by name
+return dif;
+}
+
+int vcfTabixBatchRead(struct vcfFile *vcff, char *chrom, int start, int end,
+                      int maxErr, int maxRecords)
+// Reads a batch of records from an opened and indexed VCF file, adding them to
+// vcff->records and returning the count of new records added in this batch.
+// Note: vcff->records will continue to be sorted, even if batches are loaded
+// out of order.  Additionally, resulting vcff->records will contain no duplicates
+// so returned count refects only the new records added, as opposed to all records
+// in range.  If maxErr >= zero, then continue to parse until there are maxErr+1
+// errors.  A maxErr less than zero does not stop and reports all errors.  Set
+// maxErr to VCF_IGNORE_ERRS for silence.
+{
+int oldCount = slCount(vcff->records);
+
+if (lineFileSetTabixRegion(vcff->lf, chrom, start, end))
+    {
+    struct vcfRecord *records = vcfParseData(vcff, NULL, 0, 0, maxRecords);
+    if (records)
+        {
+        struct vcfRecord *lastRec = vcff->records;
+        if (lastRec == NULL)
+            vcff->records = records;
+        else
+            {
+            // Considered just asserting the batches were in order, but a problem may
+            // result when non-overlapping location windows pick up the same long variant.
+            slSortMergeUniq(&(vcff->records), records, vcfRecordCmp, NULL);
+            }
+        }
+    }
+
+return slCount(vcff->records) - oldCount;
 }
 
 void vcfFileFree(struct vcfFile **pVcff)
@@ -734,8 +1106,15 @@ void vcfFileFree(struct vcfFile **pVcff)
 if (pVcff == NULL || *pVcff == NULL)
     return;
 struct vcfFile *vcff = *pVcff;
+if (vcff->maxErr == VCF_IGNORE_ERRS && vcff->errCnt > 0)
+    {
+    vcff->maxErr++; // Never completely silent!  Go ahead and report how many errs were detected
+    vcfFileErr(vcff,"Closing with %d errors.",vcff->errCnt);
+    }
 freez(&(vcff->headerString));
 hashFree(&(vcff->pool));
+if (vcff->reusePool)
+    lmCleanup(&vcff->reusePool);
 hashFree(&(vcff->byName));
 lineFileClose(&(vcff->lf));
 freez(pVcff);
@@ -751,10 +1130,10 @@ if (vcff->byName == NULL)
     struct vcfRecord *rec;
     for (rec = vcff->records;  rec != NULL;  rec = rec->next)
 	{
-	if (sameString (rec->name, variantId))
+	if (sameString(rec->name, variantId))
 	    {
 	    // Make shallow copy of rec so we can alter ->next:
-	    struct vcfRecord *newRec = vcfFileCloneVar(rec);
+	    struct vcfRecord *newRec = vcfFileCloneVar(vcff,rec);
 	    slAddHead(&varList, newRec);
 	    }
 	hashAdd(vcff->byName, rec->name, rec);
@@ -769,7 +1148,7 @@ else
 	if (sameString(hel->name, variantId))
 	    {
 	    struct vcfRecord *rec = hel->val;
-	    struct vcfRecord *newRec = vcfFileCloneVar(rec);
+	    struct vcfRecord *newRec = vcfFileCloneVar(vcff,rec);
 	    slAddHead(&varList, newRec);
 	    }
 	hel = hel->next;
@@ -816,13 +1195,140 @@ static enum vcfInfoType typeForGtFormat(struct vcfFile *vcff, const char *key)
  * and failing that, from the keys reserved in the spec. */
 {
 struct vcfInfoDef *def = vcfInfoDefForGtKey(vcff, key);
-if (def == NULL)
+return def ? def->type : vcfInfoString;
+}
+
+static void parseGt(char *genotype, struct vcfGenotype *gt)
+/* Parse genotype, which should be something like "0/0", "0/1", "1|0" or "0/." into gt fields. */
+{
+char *sep = strchr(genotype, '|');
+if (sep != NULL)
+    gt->isPhased = TRUE;
+else
+    sep = strchr(genotype, '/');
+if (genotype[0] == '.')
+    gt->hapIxA = -1;
+else
+    gt->hapIxA = atoi(genotype);
+if (sep == NULL)
+    gt->isHaploid = TRUE;
+else if (sep[1] == '.')
+    gt->hapIxB = -1;
+else
+    gt->hapIxB = atoi(sep+1);
+}
+
+static void parseSgtAsGt(struct vcfRecord *rec, struct vcfGenotype *gt)
+/* Parse SGT to normal and tumor genotypes */
+{
+const struct vcfInfoElement *sgtEl = vcfRecordFindInfo(rec, "SGT");
+if (sgtEl)
     {
-    vcfFileErr(vcff, "There is no FORMAT header defining \"%s\"", key);
-    // default to string so we can display value as-is:
-    return vcfInfoString;
+    char *val = sgtEl->values[0].datString;
+    // set hapIxA and hapIxB where 0 = ref, 1 = alt
+    if (startsWith("ref->", val))
+        {
+        //indel, use 0/0 for normal and 0/1 for tumor
+        if (sameString(gt->id, "NORMAL"))
+            gt->hapIxA = gt->hapIxB = 0;
+        else if (sameString(gt->id, "TUMOR"))
+            {
+            gt->hapIxA = 0;
+            gt->hapIxB = 1;
+            }
+        }
+    else
+        {
+        if (sameString(gt->id, "NORMAL"))
+            {
+            char str[2];
+            safef(str, sizeof(str), "%c", val[0]);
+            if (sameString(rec->alleles[0], str))
+                gt->hapIxA = 0;
+            else if (sameString(rec->alleles[1], str))
+                gt->hapIxA = 1;
+            else
+                gt->hapIxA = -1;
+            safef(str, sizeof(str), "%c", val[1]);
+            if (sameString(rec->alleles[1], str))
+                gt->hapIxB = 1;
+            else if (sameString(rec->alleles[0], str))
+                gt->hapIxB = 0;
+            else
+                gt->hapIxB = -1;
+            }
+        else if (sameString(gt->id, "TUMOR"))
+            {
+            char str[2];
+            safef(str, sizeof(str), "%c", val[4]);
+            if (sameString(rec->alleles[0], str))
+                gt->hapIxA = 0;
+            else if (sameString(rec->alleles[1], str))
+                gt->hapIxA = 1;
+            else
+                gt->hapIxA = -1;
+            safef(str, sizeof(str), "%c", val[5]);
+            if (sameString(rec->alleles[1], str))
+                gt->hapIxB = 1;
+            else if (sameString(rec->alleles[0], str))
+                gt->hapIxB = 0;
+            else
+                gt->hapIxB = -1;
+            }
+        }
     }
-return def->type;
+}
+
+static void parsePlAsGt(char *pl, struct vcfGenotype *gt)
+/* Parse PL value, which is usually a list of 3 numbers, one of which is 0 (the selected haplotype),
+ * into gt fields. */
+{
+char plCopy[strlen(pl)+1];
+safecpy(plCopy, sizeof(plCopy), pl);
+char *words[32];
+int wordCount = chopCommas(plCopy, words);
+if (wordCount > 0 && sameString(words[0], "0"))
+    {
+    // genotype is AA (ref/ref)
+    gt->hapIxA = 0;
+    gt->hapIxB = 0;
+    }
+else if (wordCount > 1 && sameString(words[1], "0"))
+    {
+    // genotype is AB (ref/alt)
+    gt->hapIxA = 0;
+    gt->hapIxB = 1;
+    }
+else if (wordCount > 2 && sameString(words[2], "0"))
+    {
+    // genotype is BB (alt/alt)
+    gt->hapIxA = 1;
+    gt->hapIxB = 1;
+    }
+else if (wordCount > 3 && sameString(words[3], "0"))
+    {
+    // genotype is AC (ref/alt1)
+    gt->hapIxA = 0;
+    gt->hapIxB = 2;
+    }
+else if (wordCount > 4 && sameString(words[4], "0"))
+    {
+    // genotype is BC (alt/alt1)
+    gt->hapIxA = 1;
+    gt->hapIxB = 2;
+    }
+else if (wordCount > 5 && sameString(words[5], "0"))
+    {
+    // genotype is CC (alt1/alt1)
+    gt->hapIxA = 2;
+    gt->hapIxB = 2;
+    }
+else
+    {
+    // too fancy, treat as "./."
+    gt->hapIxA = -1;
+    gt->hapIxB = -1;
+    }
 }
 
 #define VCF_MAX_FORMAT VCF_MAX_INFO
@@ -846,9 +1352,6 @@ if (formatWordCount >= VCF_MAX_FORMAT)
 	       "VCF_MAX_FORMAT may need to be increased in vcf.c!", VCF_MAX_FORMAT);
     formatWordCount = VCF_MAX_FORMAT;
     }
-if (differentString(formatWords[0], vcfGtGenotype))
-    vcfFileErr(vcff, "FORMAT column should begin with \"%s\" but begins with \"%s\"",
-	       vcfGtGenotype, formatWords[0]);
 int i;
 // Store the pooled format word pointers and associated types for use in inner loop below.
 enum vcfInfoType formatTypes[VCF_MAX_FORMAT];
@@ -872,29 +1375,22 @@ for (i = 0;  i < vcff->genotypeCount;  i++)
     gt->id = vcff->genotypeIds[i];
     gt->infoCount = gtWordCount;
     gt->infoElements = vcfFileAlloc(vcff, gtWordCount * sizeof(struct vcfInfoElement));
+    gt->hapIxA = gt->hapIxB = -1;
+    boolean foundGT = FALSE;
     int j;
     for (j = 0;  j < gtWordCount;  j++)
 	{
 	// Special parsing of genotype:
 	if (sameString(formatWords[j], vcfGtGenotype))
 	    {
-	    char *genotype = gtWords[j];
-	    char *sep = strchr(genotype, '|');
-	    if (sep != NULL)
-		gt->isPhased = TRUE;
-	    else
-		sep = strchr(genotype, '/');
-	    if (genotype[0] == '.')
-		gt->hapIxA = -1;
-	    else
-		gt->hapIxA = atoi(genotype);
-	    if (sep == NULL)
-		gt->isHaploid = TRUE;
-	    else if (sep[1] == '.')
-		gt->hapIxB = -1;
-	    else
-		gt->hapIxB = atoi(sep+1);
+            parseGt(gtWords[j], gt);
+            foundGT = TRUE;
 	    }
+        else if (!foundGT && sameString(formatWords[j], vcfGtPhred))
+            {
+            parsePlAsGt(gtWords[j], gt);
+            foundGT = TRUE;
+            }
 	struct vcfInfoElement *el = &(gt->infoElements[j]);
 	el->key = formatWords[j];
 	el->count = parseInfoValue(record, formatWords[j], formatTypes[j], gtWords[j],
@@ -905,6 +1401,15 @@ for (i = 0;  i < vcff->genotypeCount;  i++)
 		       "VCF_MAX_INFO may need to be increased in vcf.c!",
 		       gt->id, VCF_MAX_INFO);
 	}
+    if (!foundGT)   //try SGT
+        {
+        parseSgtAsGt(record, gt);
+        if (gt->hapIxA != -1)
+            foundGT = TRUE;
+        }
+    if (i == 0 && !foundGT)
+        vcfFileErr(vcff,
+                   "Genotype FORMAT column includes neither GT nor PL; unable to parse genotypes.");
     }
 record->genotypeUnparsedStrings = NULL;
 }
@@ -920,6 +1425,16 @@ vcfParseGenotypes(record);
 int ix = stringArrayIx(sampleId, vcff->genotypeIds, vcff->genotypeCount);
 if (ix >= 0)
     return &(record->genotypes[ix]);
+return NULL;
+}
+
+const struct vcfInfoElement *vcfGenotypeFindInfo(const struct vcfGenotype *gt, char *key)
+/* Find the genotype infoElement for key, or return NULL. */
+{
+int i;
+for (i = 0;  i < gt->infoCount;  i++)
+    if (sameString(key, gt->infoElements[i].key))
+        return &gt->infoElements[i];
 return NULL;
 }
 
@@ -952,3 +1467,132 @@ struct asObject *vcfAsObj()
 return asParseText(vcfDataLineAutoSqlString);
 }
 
+char *vcfGetSlashSepAllelesFromWords(char **words, struct dyString *dy)
+/* Overwrite dy with a /-separated allele string from VCF words,
+ * skipping the extra initial base that VCF requires for indel alleles if necessary,
+ * and trimming identical bases at the ends of all alleles if there are any.
+ * Return dy->string for convenience. */
+{
+// VCF reference allele gets its own column:
+char *refAllele = words[3];
+char *altAlleles = words[4];
+// Make a vcfRecord-like allele array (ref in [0], alts after) so we can check for padding base:
+int alCount = 1 + countChars(altAlleles, ',') + 1;
+char *alleles[alCount];
+alleles[0] = refAllele;
+char altAlCopy[strlen(altAlleles)+1];
+safecpy(altAlCopy, sizeof(altAlCopy), altAlleles);
+chopByChar(altAlCopy, ',', &(alleles[1]), alCount-1);
+int i;
+if (allelesHavePaddingBase(alleles, alCount))
+    {
+    // Skip padding base (unless we have a symbolic allele):
+    for (i = 0;  i < alCount;  i++)
+	if (isAllNt(alleles[i], strlen(alleles[i])))
+	    alleles[i]++;
+    }
+// Having dealt with left padding base, now look for identical bases on the right:
+int trimmedBases = countIdenticalBasesRight(alleles, alCount);
+// Build a /-separated allele string, trimming bases on the right if necessary:
+dyStringClear(dy);
+if (noAltAllele(alleles, alCount))
+    alCount = 1;
+for (i = 0;  i < alCount;  i++)
+    {
+    char *allele = alleles[i];
+    if (!sameString(allele, "."))
+        {
+        if (i != 0)
+            {
+            if (sameString(alleles[0], allele))
+                continue;
+            dyStringAppendC(dy, '/');
+            }
+        if (allele[trimmedBases] == '\0')
+            dyStringAppendC(dy, '-');
+        else
+            dyStringAppendN(dy, allele, strlen(allele)-trimmedBases);
+        }
+    }
+return dy->string;
+}
+
+static void vcfWriteWordArrayWithSep(FILE *f, int count, char **words, char sep)
+/* Write words joined by sep to f (or, if count is zero, ".").  */
+{
+if (count < 1)
+    fputc('.', f);
+else
+    {
+    fputs(words[0], f);
+    int i;
+    for (i = 1;  i < count;  i++)
+        {
+        fputc(sep, f);
+        fputs(words[i], f);
+        }
+    }
+}
+
+static void vcfWriteInfo(FILE *f, struct vcfRecord *rec)
+/* Write rec->infoElements to f. */
+{
+if (rec->infoCount < 1)
+    fputc('.', f);
+else
+    {
+    int i, j;
+    for (i = 0;  i < rec->infoCount;  i++)
+        {
+        struct vcfInfoElement *info = &(rec->infoElements[i]);
+        enum vcfInfoType type = typeForInfoKey(rec->file, info->key);
+        if (i > 0)
+            fputc(';', f);
+        fputs(info->key, f);
+        for (j = 0;  j < info->count;  j++)
+            {
+            union vcfDatum datum = info->values[j];
+            switch (type)
+                {
+                case vcfInfoInteger:
+                    fprintf(f, "=%d", datum.datInt);
+                    break;
+                case vcfInfoFloat:
+                    fprintf(f, "=%lf", datum.datFloat);
+                    break;
+                case vcfInfoFlag:
+                    // Flag key might have a value in older VCFs e.g. 3.2's DB=0, DB=1
+                    if (isNotEmpty(datum.datString))
+                        fprintf(f, "=%s", datum.datString);
+                    break;
+                case vcfInfoCharacter:
+                    fprintf(f, "%c", datum.datChar);
+                    break;
+                case vcfInfoString:
+                    fputc('=', f);
+                    if (isNotEmpty(datum.datString))
+                        fputs(datum.datString, f);
+                    break;
+                default:
+                    vcfFileErr(rec->file, "invalid vcfInfoType (uninitialized?) %d", type);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void vcfRecordWriteNoGt(FILE *f, struct vcfRecord *rec)
+/* Write the first 8 columns of VCF rec to f.  Genotype data will be ignored if present. */
+{
+fprintf(f, "%s\t%d\t%s\t%s\t", rec->chrom, rec->chromStart+1, rec->name, rec->alleles[0]);
+// Alternate alleles start at [1]
+vcfWriteWordArrayWithSep(f, rec->alleleCount-1, &(rec->alleles[1]), ',');
+fputc('\t', f);
+fputs(rec->qual, f);
+fputc('\t', f);
+vcfWriteWordArrayWithSep(f, rec->filterCount, rec->filters, ';');
+fputc('\t', f);
+vcfWriteInfo(f, rec);
+fputc('\n', f);
+}

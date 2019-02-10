@@ -4,6 +4,7 @@
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
+
 #include "common.h"
 #include "hash.h"
 #include "linefile.h"
@@ -233,12 +234,17 @@ for (;;)
        gl->geneName = gffFileGetStr(gff, val);
    else if (sameString("transcript_name", type))
        gl->transcriptName = gffFileGetStr(gff, val);
+   else if (sameString("gene_version", type))
+       gl->geneVersion = gffFileGetStr(gff, val);
+   else if (sameString("transcript_version", type))
+       gl->transcriptVersion = gffFileGetStr(gff, val);
+   else if (sameString("protein_version", type))
+       gl->proteinVersion = gffFileGetStr(gff, val);
+   else if (sameString("gene_type", type) || sameString("gene_biotype", type))
+       gl->geneType = gffFileGetStr(gff, val);
+   else if (sameString("transcript_type", type)|| sameString("transcript_biotype", type))
+       gl->transcriptType = gffFileGetStr(gff, val);
    }
-if (gl->group == NULL)
-    {
-    if (gl->geneId == NULL)
-        warn("No gene_id or transcript_id line %d of %s", lineIx, fileName);
-    }
 }
 
 void gffFileAddRow(struct gffFile *gff, int baseOffset, char *words[], int wordCount, 
@@ -280,6 +286,8 @@ if ((hel = hashLookup(gff->featureHash, words[2])) == NULL)
     el->name = hel->name;
     slAddHead(&gff->featureList, el);
     }
+struct gffFeature *feature = hel->val;
+feature->count += 1;
 gl->feature = hel->name;
 
 if (!isdigit(words[3][0]) || !isdigit(words[4][0]))
@@ -390,7 +398,7 @@ group->end = end;
 }
 
 void gffGroupLines(struct gffFile *gff)
-/* Group lines of gff file together, in process mofing
+/* Group lines of gff file together, in process moving
  * gff->lineList to gffGroup->lineList. */
 {
 struct gffLine *line, *nextLine;

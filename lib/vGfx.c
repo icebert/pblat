@@ -2,10 +2,11 @@
  * that currently can either be a memory buffer or
  * a postScript file. */
 
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "vGfx.h"
-
-
 
 /* Most of the implementation of this is in macros in vGfx.h. */
 

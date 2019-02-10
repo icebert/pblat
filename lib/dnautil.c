@@ -22,93 +22,94 @@ struct codonTable
     DNA *codon;		/* Lower case. */
     AA protCode;	/* Upper case. The "Standard" code */
     AA mitoCode;	/* Upper case. Vertebrate Mitochondrial translations */
+    AA uniqCode;	/* unique code for each codon */
     };
 
 struct codonTable codonTable[] = 
 /* The master codon/protein table. */
 {
-    {"ttt", 'F', 'F',},
-    {"ttc", 'F', 'F',},
-    {"tta", 'L', 'L',},
-    {"ttg", 'L', 'L',},
+    {"ttt", 'F', 'F', 'a'},
+    {"ttc", 'F', 'F', 'b'},
+    {"tta", 'L', 'L', 'c'},
+    {"ttg", 'L', 'L', 'd'},
 
-    {"tct", 'S', 'S',},
-    {"tcc", 'S', 'S',},
-    {"tca", 'S', 'S',},
-    {"tcg", 'S', 'S',},
+    {"tct", 'S', 'S', 'e'},
+    {"tcc", 'S', 'S', 'f'},
+    {"tca", 'S', 'S', 'g'},
+    {"tcg", 'S', 'S', 'h'},
 
-    {"tat", 'Y', 'Y',},
-    {"tac", 'Y', 'Y',},
-    {"taa", 0, 0,},
-    {"tag", 0, 0,},
+    {"tat", 'Y', 'Y', 'i'},
+    {"tac", 'Y', 'Y', 'j'},
+    {"taa", 0, 0, 'k'},
+    {"tag", 0, 0, 'l'},
 
-    {"tgt", 'C', 'C',},
-    {"tgc", 'C', 'C',},
-    {"tga", 0, 'W',},
-    {"tgg", 'W', 'W',},
-
-
-    {"ctt", 'L', 'L',},
-    {"ctc", 'L', 'L',},
-    {"cta", 'L', 'L',},
-    {"ctg", 'L', 'L',},
-
-    {"cct", 'P', 'P',},
-    {"ccc", 'P', 'P',},
-    {"cca", 'P', 'P',},
-    {"ccg", 'P', 'P',},
-
-    {"cat", 'H', 'H',},
-    {"cac", 'H', 'H',},
-    {"caa", 'Q', 'Q',},
-    {"cag", 'Q', 'Q',},
-
-    {"cgt", 'R', 'R',},
-    {"cgc", 'R', 'R',},
-    {"cga", 'R', 'R',},
-    {"cgg", 'R', 'R',},
+    {"tgt", 'C', 'C', 'm'},
+    {"tgc", 'C', 'C', 'n'},
+    {"tga", 0, 'W', 'o'},
+    {"tgg", 'W', 'W', 'p'},
 
 
-    {"att", 'I', 'I',},
-    {"atc", 'I', 'I',},
-    {"ata", 'I', 'M',},
-    {"atg", 'M', 'M',},
+    {"ctt", 'L', 'L', 'q'},
+    {"ctc", 'L', 'L', 'r'},
+    {"cta", 'L', 'L', 's'},
+    {"ctg", 'L', 'L', 't'},
 
-    {"act", 'T', 'T',},
-    {"acc", 'T', 'T',},
-    {"aca", 'T', 'T',},
-    {"acg", 'T', 'T',},
+    {"cct", 'P', 'P', 'u'},
+    {"ccc", 'P', 'P', 'v'},
+    {"cca", 'P', 'P', 'w'},
+    {"ccg", 'P', 'P', 'x'},
 
-    {"aat", 'N', 'N',},
-    {"aac", 'N', 'N',},
-    {"aaa", 'K', 'K',},
-    {"aag", 'K', 'K',},
+    {"cat", 'H', 'H', 'y'},
+    {"cac", 'H', 'H', 'z'},
+    {"caa", 'Q', 'Q', 'A'},
+    {"cag", 'Q', 'Q', 'B'},
 
-    {"agt", 'S', 'S',},
-    {"agc", 'S', 'S',},
-    {"aga", 'R', 0,},
-    {"agg", 'R', 0,},
+    {"cgt", 'R', 'R', 'C'},
+    {"cgc", 'R', 'R', 'D'},
+    {"cga", 'R', 'R', 'E'},
+    {"cgg", 'R', 'R', 'F'},
 
 
-    {"gtt", 'V', 'V',},
-    {"gtc", 'V', 'V',},
-    {"gta", 'V', 'V',},
-    {"gtg", 'V', 'V',},
+    {"att", 'I', 'I', 'G'},
+    {"atc", 'I', 'I', 'H'},
+    {"ata", 'I', 'M', 'I'},
+    {"atg", 'M', 'M', 'J'},
 
-    {"gct", 'A', 'A',},
-    {"gcc", 'A', 'A',},
-    {"gca", 'A', 'A',},
-    {"gcg", 'A', 'A',},
+    {"act", 'T', 'T', 'K'},
+    {"acc", 'T', 'T', 'L'},
+    {"aca", 'T', 'T', 'M'},
+    {"acg", 'T', 'T', 'N'},
 
-    {"gat", 'D', 'D',},
-    {"gac", 'D', 'D',},
-    {"gaa", 'E', 'E',},
-    {"gag", 'E', 'E',},
+    {"aat", 'N', 'N', 'O'},
+    {"aac", 'N', 'N', 'P'},
+    {"aaa", 'K', 'K', 'Q'},
+    {"aag", 'K', 'K', 'R'},
 
-    {"ggt", 'G', 'G',},
-    {"ggc", 'G', 'G',},
-    {"gga", 'G', 'G',},
-    {"ggg", 'G', 'G',},
+    {"agt", 'S', 'S', 'S'},
+    {"agc", 'S', 'S', 'T'},
+    {"aga", 'R', 0, 'U'},
+    {"agg", 'R', 0, 'V'},
+
+
+    {"gtt", 'V', 'V', 'W'},
+    {"gtc", 'V', 'V', 'X'},
+    {"gta", 'V', 'V', 'Y'},
+    {"gtg", 'V', 'V', 'Z'},
+
+    {"gct", 'A', 'A', '1'},
+    {"gcc", 'A', 'A', '2'},
+    {"gca", 'A', 'A', '3'},
+    {"gcg", 'A', 'A', '4'},
+
+    {"gat", 'D', 'D', '5'},
+    {"gac", 'D', 'D', '6'},
+    {"gaa", 'E', 'E', '7'},
+    {"gag", 'E', 'E', '8'},
+
+    {"ggt", 'G', 'G', '9'},
+    {"ggc", 'G', 'G', '0'},
+    {"gga", 'G', 'G', '@'},
+    {"ggg", 'G', 'G', '$'},
 };
 
 /* A table that gives values 0 for t
@@ -281,6 +282,27 @@ for (i=0; i<3; ++i)
     ix = (ix<<2) + bv;
     }
 c = codonTable[ix].mitoCode;
+c = toupper(c);
+return c;
+}
+
+AA lookupUniqCodon(DNA *dna)
+{
+int ix;
+int i;
+char c;
+
+if (!inittedNtVal)
+    initNtVal();
+ix = 0;
+for (i=0; i<3; ++i)
+    {
+    int bv = ntVal[(int)dna[i]];
+    if (bv<0)
+	return 'X';
+    ix = (ix<<2) + bv;
+    }
+c = codonTable[ix].uniqCode;
 c = toupper(c);
 return c;
 }
@@ -472,6 +494,41 @@ unsigned temp;
 temp = *pStart;
 *pStart = size - *pEnd;
 *pEnd = size - temp;
+}
+
+char *reverseComplementSlashSeparated(char *alleleStr)
+/* Given a slash-separated series of sequences (a common representation of variant alleles),
+ * returns a slash-sep series with the reverse complement of each sequence (if it is a
+ * nucleotide sequence).
+ * Special behavior to support dbSNP's variant allele conventions:
+ * 1. Reverse the order of sequences (to maintain alphabetical ordering).
+ * 2. If alleleStr begins with "-/", then after reversing, move "-/" back to the beginning. */
+{
+int len = strlen(alleleStr);
+char choppyCopy[len+1];
+safecpy(choppyCopy, sizeof(choppyCopy), alleleStr);
+char *alleles[len];
+int alCount = chopByChar(choppyCopy, '/', alleles, ArraySize(alleles));
+char *outStr = needMem(len+1);
+int i;
+for (i = alCount-1;  i >= 0;  i--)
+    {
+    char *allele = alleles[i];
+    int alLen = strlen(allele);
+    if (isAllNt(allele, alLen))
+        reverseComplement(allele, alLen);
+    if (i != alCount-1)
+        safecat(outStr, len+1, "/");
+    safecat(outStr, len+1, allele);
+    }
+if (startsWith("-/", alleleStr))
+    {
+    // Keep "-/" at the beginning:
+    memmove(outStr+2, outStr, len-2);
+    outStr[0] = '-';
+    outStr[1] = '/';
+    }
+return outStr;
 }
 
 int cmpDnaStrings(DNA *a, DNA *b)
@@ -939,7 +996,6 @@ int i;
 int score = 10;
 int bestScore = 10;
 int bestPos = -1;
-int pastPoly = 0;
 int trimSize = 0;
 
 for (i=0; i<size; ++i)
@@ -968,7 +1024,6 @@ for (i=0; i<size; ++i)
 	}
     if (score < 0)
 	{
-	pastPoly = i;
         break;
 	}
     }
@@ -1003,7 +1058,7 @@ return findHeadPolyTMaybeMask(dna, size, TRUE, FALSE);
 }
 
 boolean isDna(char *poly, int size)
-/* Return TRUE if letters in poly are at least 90% ACGTU */
+/* Return TRUE if letters in poly are at least 90% ACGTNU- */
 {
 int i;
 int dnaCount = 0;
@@ -1011,23 +1066,20 @@ int dnaCount = 0;
 dnaUtilOpen();
 for (i=0; i<size; ++i)
     {
-    if (ntChars[(int)poly[i]]) 
+    if (ntChars[(int)poly[i]])
 	dnaCount += 1;
     }
 return (dnaCount >= round(0.9 * size));
 }
 
-boolean isAllDna(char *poly, int size)
-/* Return TRUE if letters in poly are 100% ACGTU */
+boolean isAllNt(char *seq, int size)
+/* Return TRUE if all letters in seq are ACGTNU-. */
 {
 int i;
-
-if (size <= 1)
-    return FALSE;
 dnaUtilOpen();
-for (i=0; i<size-1; ++i)
+for (i = 0;  i < size;  ++i)
     {
-    if (ntChars[(int)poly[i]] == 0) 
+    if (ntChars[(int)seq[i]] == 0)
 	return FALSE;
     }
 return TRUE;
@@ -1121,4 +1173,76 @@ if (!opened)
     initNtCompTable();
     opened = TRUE;
     }
+}
+
+char aaAbbrToLetter(char *abbr)
+/* Convert an AA abbreviation such as "Ala", "Asp" etc., to its single letter code
+ * such as "A", "D" etc.  Return the null char '\0' if abbr is not found. */
+{
+// Lowercase for comparison.
+char abbrLC[4];
+safencpy(abbrLC, sizeof(abbrLC), abbr, 3);
+toLowerN(abbrLC, 3);
+int ix;
+for (ix = 0;  ix < ArraySize(aminoAcidTable);  ix++)
+    {
+    if (sameStringN(abbrLC, aminoAcidTable[ix].abbreviation, 3))
+        return aminoAcidTable[ix].letter;
+    }
+return '\0';
+}
+
+void aaToAbbr(char aa, char *abbrBuf, size_t abbrBufSize)
+/* Convert an AA single letter such as "A", "D" etc. to its abbreviation such as "Ala", "Asp" etc.
+ * abbrBufSize must be at least 4.  If aa is not found, "?%c?",aa is written into abbrBuf. */
+{
+// Uppercase for comparison.
+char aaUC = toupper(aa);
+int ix;
+for (ix = 0;  ix < ArraySize(aminoAcidTable);  ix++)
+    {
+    if (aaUC == aminoAcidTable[ix].letter)
+        {
+        // safencpy(...3) is required here because aminoAcidTable.abbreviation is char[3] not [4]
+        safencpy(abbrBuf, abbrBufSize, aminoAcidTable[ix].abbreviation, 3);
+        abbrBuf[0] = toupper(abbrBuf[0]);
+        return;
+        }
+    }
+safef(abbrBuf, abbrBufSize, "?%c?", aa);
+}
+
+void trimRefAlt(char *ref, char *alt, uint *pStart, uint *pEnd, int *pRefLen, int *pAltLen)
+/* If ref and alt have identical bases at beginning and/or end, trim those & update all params. */
+{
+int trimStart = 0;
+while (ref[trimStart] != '\0' && alt[trimStart] != '\0' && ref[trimStart] == alt[trimStart])
+    trimStart++;
+int refLen = strlen(ref);
+int altLen = strlen(alt);
+int iR = refLen - 1, iA = altLen - 1, trimEnd = 0;
+while (iR >= trimStart && iA >= trimStart && ref[iR] == alt[iA])
+    {
+    iR--;
+    iA--;
+    trimEnd++;
+    }
+if (trimEnd)
+    {
+    *pEnd -= trimEnd;
+    refLen -= trimEnd;
+    altLen -= trimEnd;
+    ref[refLen] = '\0';
+    alt[altLen] = '\0';
+    }
+if (trimStart)
+    {
+    *pStart += trimStart;
+    refLen -= trimStart;
+    altLen -= trimStart;
+    memmove(ref, ref+trimStart, refLen+1);
+    memmove(alt, alt+trimStart, altLen+1);
+    }
+*pRefLen = refLen;
+*pAltLen = altLen;
 }

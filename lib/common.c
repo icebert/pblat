@@ -363,8 +363,26 @@ slReverse(&newList);
 *pSlList = newList;
 }
 
+void slSortMerge(void *pA, void *b, CmpFunction *compare)
+// Merges and sorts a pair of singly linked lists using slSort.
+{
+struct slList **pList = (struct slList **)pA;
+slCat(*pList, b);
+slSort(pList,compare);
+}
+
+void slSortMergeUniq(void *pA, void *b, CmpFunction *compare, void (*free)())
+// Merges and sorts a pair of singly linked lists leaving only unique
+// items via slUniqufy.  duplicate itens are defined by the compare routine
+// returning 0. If free is provided, items dropped from list can disposed of.
+{
+struct slList **pList = (struct slList **)pA;
+*pList = slCat(*pList, b);
+slUniqify(pList,compare,free);
+}
+
 boolean slRemoveEl(void *vpList, void *vToRemove)
-/* Remove element from doubly linked list.  Usage:
+/* Remove element from singly linked list.  Usage:
  *    slRemove(&list, el);
  * Returns TRUE if element in list.  */
 {
@@ -423,6 +441,15 @@ for (i=list;i;i=i->next)
 return NULL;
 }
 
+struct slUnsigned *slUnsignedNew(unsigned x)
+/* Return a new int. */
+{
+struct slUnsigned *a;
+AllocVar(a);
+a->val = x;
+return a;
+}
+
 static int doubleCmp(const void *va, const void *vb)
 /* Compare function to sort array of doubles. */
 {
@@ -464,18 +491,43 @@ void doubleBoxWhiskerCalc(int count, double *array, double *retMin,
                           double *retQ1, double *retMedian, double *retQ3, double *retMax)
 /* Calculate what you need to draw a box and whiskers plot from an array of doubles. */
 {
+if (count <= 0)
+    errAbort("doubleBoxWhiskerCalc needs a positive number, not %d for count", count);
+if (count == 1)
+    {
+    *retMin = *retQ1 = *retMedian = *retQ3 = *retMax = array[0];
+    return;
+    }
 doubleSort(count, array);
-*retMin = array[0];
-*retQ1 = array[(count+2)/4];
+double min = array[0];
+double max = array[count-1];
+double median;
 int halfCount = count>>1;
 if ((count&1) == 1)
-    *retMedian = array[halfCount];
+    median = array[halfCount];
 else
     {
-    *retMedian = (array[halfCount] + array[halfCount-1]) * 0.5;
+    median = (array[halfCount] + array[halfCount-1]) * 0.5;
     }
-*retQ3 = array[(3*count+2)/4];
-*retMax = array[count-1];
+double q1, q3;
+if (count <= 3)
+    {
+    q1 = 0.5 * (median + min);
+    q3 = 0.5 * (median + max);
+    }
+else
+    {
+    int q1Ix = count/4;
+    int q3Ix = count - 1 - q1Ix;
+    verbose(4, "count %d, q1Ix %d, q3Ix %d\n", count, q1Ix, q3Ix);
+    q1 = array[q1Ix];
+    q3 = array[q3Ix];
+    }
+*retMin = min;
+*retQ1 = q1;
+*retMedian = median;
+*retQ3 = q3;
+*retMax = max;
 }
 
 struct slDouble *slDoubleNew(double x)
@@ -658,7 +710,7 @@ return FALSE;
 
 void *slNameFind(void *list, char *string)
 /* Return first element of slName list (or any other list starting
- * with next/name fields) that matches string. */
+ * with next/name fields) that matches string. This is case insensitive. */
 {
 struct slName *el;
 for (el = list; el != NULL; el = el->next)
@@ -750,32 +802,37 @@ slReverse(&list);
 return list;
 }
 
-struct slName *slNameListOfUniqueWords(char *text,boolean respectQuotes)
-// Return list of unique words found by parsing string delimited by whitespace.
-// If respectQuotes then ["Lucy and Ricky" 'Fred and Ethyl'] will yield 2 slNames no quotes
+struct slName *slNameListFromCommaEscaped(char *s)
+/* Return list of slNames gotten from parsing comma delimited string.
+ * The final comma is optional. a,b,c  and a,b,c, are equivalent
+ * for comma-delimited lists. To escape commas, put two in a row, 
+ * which eliminates the possibility for null names 
+ * (eg.  a,,b,c will parse to two elements a,b and c). */
 {
+if (s == NULL)
+    return NULL;
+
 struct slName *list = NULL;
-char *word = NULL;
-while (text != NULL)
+char buffer[strlen(s) + 1], *ptr = buffer;
+
+for (; *s != 0; s++)
     {
-    if (respectQuotes)
+    *ptr++ = *s;
+    if (*s == ',')
         {
-        word = nextWordRespectingQuotes(&text);
-        if (word != NULL)
+        if (s[1] != ',') // if next character not also a ,
             {
-            if (word[0] == '"')
-                stripChar(word, '"');
-            else if (word[0] == '\'')
-                stripChar(word, '\'');
+            // we found the delimeter, add the string to the list
+            slAddHead(&list, slNameNewN(buffer, ptr - buffer - 1));
+            ptr = buffer;   // start a new buffer
             }
+        else
+            s++; // skip the quoting comma and continue
         }
-    else
-        word = nextWord(&text);
-    if (word)
-        slNameStore(&list, word);
-    else
-        break;
     }
+
+if (ptr > buffer)  // is there something in the buffer
+    slAddHead(&list, slNameNewN(buffer, ptr - buffer)); // add it to the list
 
 slReverse(&list);
 return list;
@@ -811,6 +868,9 @@ int elCount = 0;
 int len = 0;
 char del[2];
 char *s;
+
+if (list == NULL)
+    return cloneString("");
 
 del[0] = delimiter;
 del[1] = '\0';
@@ -896,6 +956,20 @@ if (refOnList(*pRefList, val) == NULL)
     }
 }
 
+void slRefFreeListAndVals(struct slRef **pList)
+/* Free up (with simple freeMem()) each val on list, and the list itself as well. */
+{
+struct slRef *el, *next;
+
+for (el = *pList; el != NULL; el = next)
+    {
+    next = el->next;
+    freeMem(el->val);
+    freeMem(el);
+    }
+*pList = NULL;
+}
+
 struct slRef *refListFromSlList(void *list)
 /* Make a reference list that mirrors a singly-linked list. */
 {
@@ -952,12 +1026,33 @@ for (el = *pList; el != NULL; el = next)
 *pList = NULL;
 }
 
-void slPairFreeVals(struct slPair *list)
-/* Free up all values on list. */
+void slPairFreeValsExt(struct slPair *list, void (*freeFunc)())
+/* Free up all values on list using freeFunc.
+ * freeFunc should take a simple pointer to free an item, and can be NULL. */
 {
 struct slPair *el;
 for (el = list; el != NULL; el = el->next)
-    freez(&el->val);
+    {
+    if (freeFunc)
+        freeFunc(el->val);
+    else
+        freez(&el->val);
+    }
+}
+
+void slPairFreeVals(struct slPair *list)
+/* Free up all values on list. */
+{
+slPairFreeValsExt(list, NULL);
+}
+
+void slPairFreeValsAndListExt(struct slPair **pList, void (*freeFunc)())
+/* Free up all values on list using freeFunc and list itself.
+ * freeFunc should take a simple pointer to free an item, and can be NULL. */
+{
+if (pList)
+    slPairFreeValsExt(*pList, freeFunc);
+slPairFreeList(pList);
 }
 
 void slPairFreeValsAndList(struct slPair **pList)
@@ -1187,7 +1282,7 @@ for (pair = list; pair != NULL; pair = pair->next, strPtr += strlen(strPtr))
         else
             {
             if (delimiter == ' ')  // if delimied by commas, this is entirely okay!
-                warn("slPairListToString() Unexpected white space in name delimied by space: "
+                warn("slPairListToString() Unexpected white space in name delimited by space: "
                      "[%s]\n", pair->name);
             sprintf(strPtr,"%s",pair->name); // warn but still make string
             }
@@ -1317,6 +1412,12 @@ else
     return strcmp(a,b) != 0;
 }
 
+boolean isEmptyTextField(char *s)
+/* Recognize NULL or dot as empty text */
+{
+return (isEmpty(s) || sameString(".", s));
+}
+
 boolean startsWith(const char *start, const char *string)
 /* Returns TRUE if string begins with start. */
 {
@@ -1328,6 +1429,21 @@ for (i=0; ;i += 1)
     if ((c = start[i]) == 0)
         return TRUE;
     if (string[i] != c)
+        return FALSE;
+    }
+}
+
+boolean startsWithNoCase(const char *start, const char *string)
+/* Returns TRUE if string begins with start, case-insensitive. */
+{
+char c;
+int i;
+
+for (i=0; ;i += 1)
+    {
+    if ((c = tolower(start[i])) == 0)
+        return TRUE;
+    if (tolower(string[i]) != c)
         return FALSE;
     }
 }
@@ -1399,13 +1515,17 @@ for (pos = haystack + strlen(haystack) - nSize; pos >= haystack; pos -= 1)
 return NULL;
 }
 
-char *stringBetween(char *start, char *end, char *haystack)
-/* Return string between start and end strings, or NULL if
- * none found.  The first such instance is returned.
- * String must be freed by caller. */
+char *nextStringBetween(char *start, char *end, char **pHaystack)
+/* Return next string that occurs between start and end strings
+ * starting seach at *pHaystack.  This will update *pHaystack to after 
+ * end, so it can be called repeatedly. Returns NULL when
+ * no more to be found*/
 {
 char *pos, *p;
 int len;
+char *haystack = *pHaystack;
+if (isEmpty(haystack))
+    return NULL;
 if ((p = stringIn(start, haystack)) != NULL)
     {
     pos = p + strlen(start);
@@ -1414,10 +1534,20 @@ if ((p = stringIn(start, haystack)) != NULL)
         len = p - pos;
         pos = cloneMem(pos, len + 1);
         pos[len] = 0;
+	*pHaystack = p;
         return pos;
         }
     }
+*pHaystack = NULL;
 return NULL;
+}
+
+char *stringBetween(char *start, char *end, char *haystack)
+/* Return string between start and end strings, or NULL if
+ * none found.  The first such instance is returned.
+ * String must be freed by caller. */
+{
+return nextStringBetween(start, end, &haystack);
 }
 
 boolean endsWith(char *string, char *end)
@@ -1534,6 +1664,20 @@ for (;;)
     *ss++ = toupper(c);
     }
 return s;
+}
+
+void replaceChar(char *s, char oldc, char newc)
+/* Repace one char with another. Modifies original string. */
+{
+if (!s)
+    return;
+char c;
+while((c=*s))
+    {
+    if (c == oldc)
+       *s = newc;	
+    ++s;
+    }
 }
 
 char *replaceChars(char *string, char *old, char *new)
@@ -1763,7 +1907,7 @@ int countSeparatedItems(char *string, char separator)
 int count = 0;
 char c, lastC = 0;
 while ((c = *string++) != 0)
-    {   
+    {
     if (c == separator)
        ++count;
     lastC = c;
@@ -1850,10 +1994,10 @@ return count;
  * outArray.  It returns the number of strings.
  * If you pass in NULL for outArray, it will just
  * return the number of strings that it *would*
- * chop. 
+ * chop. This splits the string.
  * GOTCHA: since multiple separators are skipped
- * and treated as one, it is impossible to parse 
- * a list with an empty string. 
+ * and treated as one, it is impossible to parse
+ * a list with an empty string.
  * e.g. cat\t\tdog returns only cat and dog but no empty string */
 int chopString(char *in, char *sep, char *outArray[], int outSize)
 {
@@ -1881,7 +2025,7 @@ return recordCount;
 }
 
 int chopByWhite(char *in, char *outArray[], int outSize)
-/* Like chopString, but specialized for white space separators. 
+/* Like chopString, but specialized for white space separators.
  * See the GOTCHA in chopString */
 {
 int recordCount = 0;
@@ -1921,6 +2065,8 @@ return recordCount;
 }
 
 int chopByWhiteRespectDoubleQuotes(char *in, char *outArray[], int outSize)
+// NOTE: this routine does not do what this comment says.  It did not ever remove quotes due to
+// a coding error so I took out the code that pretended to be doing this.
 /* Like chopString, but specialized for white space separators.
  * Further, any doubleQuotes (") are respected.
  * If doubleQuote is encloses whole string, then they are removed:
@@ -1931,7 +2077,6 @@ int chopByWhiteRespectDoubleQuotes(char *in, char *outArray[], int outSize)
 {
 int recordCount = 0;
 char c;
-char *quoteBegins = NULL;
 boolean quoting = FALSE;
 for (;;)
     {
@@ -1945,13 +2090,7 @@ for (;;)
 
     /* Store start of word and look for end of word. */
     if (outArray != NULL)
-        {
         outArray[recordCount] = in;
-        if ((*in == '"'))
-            quoteBegins = (in+1);
-        else
-            quoteBegins = NULL;
-        }
     recordCount += 1;
     quoting = FALSE;
     for (;;)
@@ -1961,18 +2100,7 @@ for (;;)
         if (quoting)
             {
             if (c == '"')
-                {
                 quoting = FALSE;
-                if (quoteBegins != NULL) // implies out array
-                    {
-                    if ((c = *(in+1) == 0 )|| isspace(c)) // whole word is quoted.
-                        {
-                        outArray[recordCount-1] = quoteBegins; // Fix beginning of word
-                        quoteBegins = NULL;
-                        break;
-                        }
-                    }
-                }
             }
         else
             {
@@ -2078,21 +2206,27 @@ for (;;)
 
 
 
-void eraseTrailingSpaces(char *s)
-/* Replace trailing white space with zeroes. */
+int eraseTrailingSpaces(char *s)
+/* Replace trailing white space with zeroes. Returns number of
+ * spaces erased. */
 {
 int len = strlen(s);
 int i;
 char c;
+int erased = 0;
 
 for (i=len-1; i>=0; --i)
     {
     c = s[i];
     if (isspace(c))
+	{
 	s[i] = 0;
+	++erased;
+	}
     else
 	break;
     }
+return erased;
 }
 
 /* Remove white space from a string */
@@ -2111,6 +2245,24 @@ for (;;)
 	*out++ = c;
     }
 *out++ = 0;
+}
+
+/* Remove any chars leaving digits only */
+void eraseNonDigits(char *s)
+{
+char *in, *out;
+char c;
+
+in = out = s;
+for (;;)
+    {
+    c = *in++;
+    if (c == 0)
+        break;
+    if (isdigit(c))
+        *out++ = c;
+    }
+*out = 0;
 }
 
 /* Remove non-alphanumeric chars from string */
@@ -2195,6 +2347,17 @@ else
     return cloneStringZ(startFirstWord, endFirstWord - startFirstWord);
 }
 
+char *cloneNotFirstWord(char *s)
+/* return part of string after first space, not changing s. Result has to be freed. */
+{
+if (s==NULL)
+    return cloneString("");
+char* spcPos = stringIn(" ", s);
+if (spcPos==NULL)
+    return cloneString("");
+return cloneString(spcPos+1);
+}
+
 char *lastWordInLine(char *line)
 /* Returns last word in line if any (white space separated).
  * Returns NULL if string is empty.  Removes any terminating white space
@@ -2234,35 +2397,6 @@ if (e != NULL)
 return s;
 }
 
-char *nextWordRespectingQuotes(char **pLine)
-// return next word but respects single or double quotes surrounding sets of words.
-{
-char *s = *pLine, *e;
-if (s == NULL || s[0] == 0)
-    return NULL;
-s = skipLeadingSpaces(s);
-if (s[0] == 0)
-    return NULL;
-if (s[0] == '"')
-    {
-    e = skipBeyondDelimit(s+1,'"');
-    if (e != NULL && !isspace(e[0]))
-        e = skipToSpaces(s);
-    }
-else if (s[0] == '\'')
-    {
-    e = skipBeyondDelimit(s+1,'\'');
-    if (e != NULL && !isspace(e[0]))
-        e = skipToSpaces(s);
-    }
-else
-    e = skipToSpaces(s);
-if (e != NULL)
-    *e++ = 0;
-*pLine = e;
-return s;
-}
-
 char *nextTabWord(char **pLine)
 /* Return next tab-separated word. */
 {
@@ -2289,13 +2423,10 @@ else
 return s;
 }
 
-char *cloneFirstWordByDelimiter(char *line,char delimit)
-/* Returns a cloned first word, not harming the memory passed in */
+char *cloneFirstWordByDelimiterNoSkip(char *line,char delimit)
+/* Returns a cloned first word, not harming the memory passed in. Does not skip leading white space.*/
 {
 if (line == NULL || *line == 0)
-    return NULL;
-line = skipLeadingSpaces(line);
-if (*line == 0)
     return NULL;
 int size=0;
 char *e;
@@ -2312,6 +2443,15 @@ if (size == 0)
 char *new = needMem(size + 2); // Null terminated by 2
 memcpy(new, line, size);
 return new;
+}
+
+char *cloneFirstWordByDelimiter(char *line,char delimit)
+/* Returns a cloned first word, not harming the memory passed in. Skips over leading white space. */
+{
+if (line == NULL || *line == 0)
+    return NULL;
+line = skipLeadingSpaces(line);
+return cloneFirstWordByDelimiterNoSkip(line, delimit);
 }
 
 char *cloneNextWordByDelimiter(char **line,char delimit)
@@ -2351,7 +2491,6 @@ return cnt;
 }
 
 int stringArrayIx(char *string, char *array[], int arraySize)
-
 /* Return index of string in array or -1 if not there. */
 {
 int i;
@@ -2359,6 +2498,25 @@ for (i=0; i<arraySize; ++i)
     if (!differentWord(array[i], string))
         return i;
 return -1;
+}
+
+int cmpStringOrder(char *a, char *b, char **orderFields, int orderCount)
+/* Compare two strings to sort in same order as orderedFields.  If strings are
+ * not in order, will sort them to be after all ordered fields, alphabetically */
+{
+int aIx = stringArrayIx(a, orderFields, orderCount);
+int bIx = stringArrayIx(b, orderFields, orderCount);
+if (aIx < 0)	// A not in list?
+    {
+    if (bIx < 0)	// Neither in list, be alphabetical
+	return(strcmp(a, b));
+    else		// Only b in list, move a towards end
+	return 1;
+    }
+else if (bIx < 0)	// Only a in list, move b towards end
+    return -1;
+else
+    return aIx - bIx;   // Both in ordered list, just subtract indexes to sort
 }
 
 int ptArrayIx(void *pt, void *array, int arraySize)
@@ -2397,7 +2555,7 @@ if ((f = fopen(fileName, mode)) == NULL)
         else if (mode[0] == 'a')
             modeName = " to append";
         }
-    errAbort("Can't open %s%s: %s", fileName, modeName, strerror(errno));
+    errAbort("mustOpen: Can't open %s%s: %s", fileName, modeName, strerror(errno));
     }
 return f;
 }
@@ -2546,7 +2704,7 @@ if (fd < 0)
 	modeName = " to append";
     else
 	modeName = " to read";
-    errnoAbort("Can't open %s%s", fileName, modeName);
+    errnoAbort("mustOpenFd: Can't open %s%s", fileName, modeName);
     }
 return fd;
 }
@@ -2574,7 +2732,13 @@ void mustWriteFd(int fd, void *buf, size_t size)
 {
 ssize_t result = write(fd, buf, size);
 if (result < size)
-    errAbort("mustWriteFd: write failed: %s", strerror(errno));
+    {
+    if (result < 0)
+	errnoAbort("mustWriteFd: write failed");
+    else
+        errAbort("mustWriteFd only wrote %lld of %lld bytes. Likely the disk is full.",
+	    (long long)result, (long long)size);
+    }
 }
 
 off_t mustLseek(int fd, off_t offset, int whence)
@@ -2664,6 +2828,17 @@ if ((pFile != NULL) && ((f = *pFile) != NULL))
             errnoWarn("fclose failed");
 	    ok = FALSE;
 	    }
+        }
+    else if (f == stdout)
+        {
+        // One expects close() to actually flush the file and close it.  If
+        // the file was opened using the magic name "stdout" and then does a
+        // setvbuf(), writes to file, calls carefulClose, then frees the
+        // buffer, the FILE object points to invalid memory.  Then the exit()
+        // I/O cleanup causes the invalid memory to be written to the file,
+        // possible outputting corruption data.  If would be consistent with
+        // stdio behavior to have "stdout" magic name open "/dev/stdout".
+        fflush(f);
         }
     *pFile = NULL;
     }
@@ -2805,7 +2980,7 @@ return ret;
 bits64 byteSwap64(bits64 a)
 /* Return byte-swapped version of a */
 {
-union {bits64 whole; UBYTE bytes[4];} u,v;
+union {bits64 whole; UBYTE bytes[8];} u,v;
 u.whole = a;
 v.bytes[0] = u.bytes[7];
 v.bytes[1] = u.bytes[6];
@@ -2939,7 +3114,7 @@ return val;
 double byteSwapDouble(double a)
 /* Return byte-swapped version of a */
 {
-union {double whole; UBYTE bytes[4];} u,v;
+union {double whole; UBYTE bytes[8];} u,v;
 u.whole = a;
 v.bytes[0] = u.bytes[7];
 v.bytes[1] = u.bytes[6];
@@ -3145,6 +3320,29 @@ if(p==NULL) return NULL;
 return p-q+haystack;
 }
 
+int vatruncatef(char *buf, int size, char *format, va_list args)
+/* Like vasafef, but truncates the formatted string instead of barfing on
+ * overflow. */
+{
+char *truncStr = " [truncated]";
+int sz = vsnprintf(buf, size, format, args);
+/* note that some version return -1 if too small */
+if ((sz < 0) || (sz >= size))
+    strncpy(buf + size - 1 - strlen(truncStr), truncStr, strlen(truncStr));
+buf[size-1] = 0;
+return sz;
+}
+
+void truncatef(char *buf, int size, char *format, ...)
+/* Like safef, but truncates the formatted string instead of barfing on
+ * overflow. */
+{
+va_list args;
+va_start(args, format);
+vatruncatef(buf, size, format, args);  // ignore returned size
+va_end(args);
+}
+
 int vasafef(char* buffer, int bufSize, char *format, va_list args)
 /* Format string to buffer, vsprintf style, only with buffer overflow
  * checking.  The resulting string is always terminated with zero byte. */
@@ -3216,6 +3414,16 @@ if (slen > n)
     slen = n;
 strncat(buf, src, n);
 buf[blen+slen] = '\0';
+}
+
+void safememset(char *buf, size_t bufSize, const char c, size_t n)
+/* Append a character to a buffer repeatedly, n times with bounds checking.*/
+{
+size_t blen = strlen(buf);
+if (blen+n+1 > bufSize)
+    errAbort("buffer overflow, size %lld, new string size: %lld", (long long)bufSize, (long long)(blen+n));
+memset(buf+blen, c, n);
+buf[blen+n] = 0;
 }
 
 
@@ -3301,6 +3509,28 @@ while((*next != '\0')
 makeDir(pathBuf);
 }
 
+boolean isSymbolString(char *s)
+/* Return TRUE if s can be used as a symbol in the C language */
+{
+char c = *s++;
+if (!isalpha(c) && (c != '_'))
+    return FALSE;
+while ((c = *s++) != 0)
+    {
+    if (!(isalnum(c) || (c == '_')))
+	return FALSE;
+    }
+return TRUE;
+}
+
+boolean isNumericString(char *s)
+/* Return TRUE if string is numeric (integer or floating point) */
+{
+char *end;
+strtod(s, &end);
+return (end != s && *end == 0);
+}
+
 char *skipNumeric(char *s)
 /* Return first char of s that's not a digit */
 {
@@ -3327,6 +3557,18 @@ char *splitOffNumber(char *db)
 /* Split off number part, e.g. 8 of mm8. Result should be freed when done */
 {
 return cloneString(skipToNumeric(db));
+}
+
+boolean isAllDigits(char *s)
+/* Return TRUE if string is non-empty and contains only digits (i.e. is a nonnegative integer). */
+{
+if (isEmpty(s))
+    return FALSE;
+char c;
+while ((c = *s++) != 0)
+    if (!isdigit(c))
+        return FALSE;
+return TRUE;
 }
 
 time_t mktimeFromUtc (struct tm *t)
@@ -3372,6 +3614,14 @@ time_t now = clock1();
 return (test < now);
 }
 
+boolean dateIsOlderBy(const char *date,const char*format, time_t seconds)
+// Is this string date older than now by this many seconds?
+{
+time_t test = dateToSeconds(date,format);
+time_t now = clock1();
+return (test + seconds < now);
+}
+
 static int daysOfMonth(struct tm *tp)
 /* Returns the days of the month given the year */
 {
@@ -3392,6 +3642,15 @@ switch(tp->tm_mon)
                 break;
     }
 return days;
+}
+
+unsigned dayOfYear()
+/* Return the day of the year. */
+{
+time_t now = time(NULL);
+struct tm *tm = localtime(&now);
+
+return tm->tm_yday;
 }
 
 static void dateAdd(struct tm *tp,int addYears,int addMonths,int addDays)
@@ -3445,5 +3704,14 @@ if (strptime(date,format, &tp))
     strftime(newDate,12,format,&tp);
     }
 return cloneString(newDate);  // newDate is never freed!
+}
+
+boolean haplotype(const char *name)
+/* Is this name a haplotype name ?  _hap or _alt in the name */
+{
+if (stringIn("_hap", name) || stringIn("_alt", name))
+   return TRUE;
+else
+   return FALSE;
 }
 

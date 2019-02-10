@@ -1,11 +1,16 @@
 /* trix - text retrieval index.  Stuff for fast two level index
  * of text for fast word searches. */
 
+/* Copyright (C) 2013 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "hash.h"
 #include "linefile.h"
 #include "trix.h"
 #include "sqlNum.h"
+#include "udc.h"
+#include "net.h"
 
 
 /* Some local structures for the search. */
@@ -192,25 +197,62 @@ memcpy(ixx->prefix, prefix, sizeof(ixx->prefix));
 trix->ixxSize += 1;
 }
 
+// wrappers around the udc or lineFile routines
+static void *ourOpen(struct trix *trix, char *fileName)
+{
+if (trix->useUdc)
+    return (void *)udcFileOpen(fileName, NULL);
+return (void *)lineFileOpen(fileName, TRUE);
+}
+
+static boolean ourReadLine(struct trix *trix, void *lf, char **line)
+{
+if (trix->useUdc)
+    {
+    *line = udcReadLine((struct udcFile *)lf);
+    return *line != NULL;
+    }
+return lineFileNext((struct lineFile *)lf, line, NULL);
+}
+
+static void ourClose(struct trix *trix, void **lf)
+{
+if (trix->useUdc)
+    udcFileClose((struct udcFile **)lf);
+else
+    lineFileClose((struct lineFile **)lf);
+}
+
+void ourSeek(struct trix *trix, off_t ixPos)
+{
+if (trix->useUdc)
+    udcSeek((struct udcFile *)trix->lf, ixPos);
+else
+    lineFileSeek((struct lineFile *)trix->lf, ixPos, SEEK_SET);
+}
+
 struct trix *trixOpen(char *ixFile)
 /* Open up index.  Load second level index in memory. */
 {
+struct trix *trix = trixNew();
+trix->useUdc = FALSE;
+if (hasProtocol(ixFile))
+    trix->useUdc = TRUE;
+
 char ixxFile[PATH_LEN];
-struct trix *trix;
-struct lineFile *lf;
+void *lf;
 char *line;
 
 initUnhexTable();
 safef(ixxFile, sizeof(ixxFile), "%sx", ixFile);
-lf = lineFileOpen(ixxFile, TRUE);
-trix = trixNew();
-while (lineFileNext(lf, &line, NULL))
+lf = ourOpen(trix, ixxFile);
+while (ourReadLine(trix, lf, &line) )
     {
     off_t pos = unhex(line+trixPrefixSize);
     trixAddToIxx(trix, pos, line);
     }
-lineFileClose(&lf);
-trix->lf = lineFileOpen(ixFile, TRUE);
+ourClose(trix, &lf);
+trix->lf = ourOpen(trix, ixFile);
 return trix;
 }
 
@@ -326,7 +368,7 @@ slReverse(&newList);
 return newList;
 }
 
-static int reasonablePrefix(char *prefix, char *word, boolean expand)
+static int reasonablePrefix(char *prefix, char *word, enum trixSearchMode mode)
 /* Return non-negative if prefix is reasonable for word.
  * Returns number of letters left in word not matched by
  * prefix. */
@@ -336,7 +378,8 @@ int wordLen = strlen(word);
 int suffixLen = wordLen - prefixLen;
 if (suffixLen == 0)
    return 0;
-else if (expand && prefixLen >= 3)
+else if ((mode == tsmExpand && prefixLen >= 3) ||
+         (mode == tsmFirstFive && prefixLen >= 5))
     {
     int wordEnd;
     char *suffix = word + prefixLen;
@@ -353,13 +396,15 @@ else if (expand && prefixLen >= 3)
        return wordEnd;
     if (wordEnd == 3 && startsWith("ing", suffix))
        return wordEnd;
+    if (mode == tsmFirstFive && prefixLen >= 5)
+        return wordEnd;
     }
 return -1;
 }
 
 
 struct trixWordResult *trixSearchWordResults(struct trix *trix, 
-	char *searchWord, boolean expand)
+	char *searchWord, enum trixSearchMode mode)
 /* Get results for single word from index.  Returns NULL if no matches. */
 {
 char *line, *word;
@@ -370,13 +415,13 @@ if (hitList == NULL)
     {
     struct trixHitPos *oneHitList;
     off_t ixPos = trixFindIndexStartLine(trix, searchWord);
-    lineFileSeek(trix->lf, ixPos, SEEK_SET);
-    while (lineFileNext(trix->lf, &line, NULL))
+    ourSeek(trix, ixPos);
+    while (ourReadLine(trix, trix->lf, &line))
 	{
 	word = nextWord(&line);
 	if (startsWith(searchWord, word))
 	    {
-	    int leftoverLetters = reasonablePrefix(searchWord, word, expand);
+	    int leftoverLetters = reasonablePrefix(searchWord, word, mode);
 	    /* uglyf("reasonablePrefix(%s,%s)=%d<BR>\n", searchWord, word, leftoverLetters); */
 	    if (leftoverLetters >= 0)
 		{
@@ -632,7 +677,7 @@ return tsList;
 }
 
 int trixSearchResultCmp(const void *va, const void *vb)
-/* Compare two trixSearchResult by itemId. */
+/* Compare two trixSearchResult in such a way that most relevant searches tend to be first. */
 {
 const struct trixSearchResult *a = *((struct trixSearchResult **)va);
 const struct trixSearchResult *b = *((struct trixSearchResult **)vb);
@@ -653,12 +698,14 @@ return dif;
 }
 
 struct trixSearchResult *trixSearch(struct trix *trix, int wordCount, char **words,
-	boolean expand)
+                                    enum trixSearchMode mode)
 /* Return a list of items that match all words.  This will be sorted so that
  * multiple-word matches where the words are closer to each other and in the
- * right order will be first.  Do a trixSearchResultFreeList when done. 
- * If expand is TRUE then this will match not only the input words, but also
- * additional words that start with the input words. */
+ * right order will be first.  Single word matches will be prioritized so that those
+ * closer to the start of the search text will appear before those later.
+ * Do a trixSearchResultFreeList when done.  If mode is tsmExpand or tsmFirstFive then
+ * this will match not only the input words, but also additional words that start with
+ * the input words. */
 {
 struct trixWordResult *twr, *twrList = NULL;
 struct trixSearchResult *ts, *tsList = NULL;
@@ -669,7 +716,7 @@ if (wordCount == 1)
     {
     struct trixHitPos *hit;
     char *lastId = "";
-    twr = twrList = trixSearchWordResults(trix, words[0], expand);
+    twr = twrList = trixSearchWordResults(trix, words[0], mode);
     if (twr == NULL)
         return NULL;
     for (hit = twr->hitList; hit != NULL; hit = hit->next)
@@ -693,7 +740,7 @@ else
     for (wordIx=0; wordIx<wordCount; ++wordIx)
 	{
 	char *searchWord = words[wordIx];
-	twr = trixSearchWordResults(trix, searchWord, expand);
+	twr = trixSearchWordResults(trix, searchWord, mode);
 	if (twr == NULL)
 	    {
 	    gotMiss = TRUE;

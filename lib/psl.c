@@ -20,38 +20,6 @@
 #include "rangeTree.h"
 
 
-static char *createString = 
-"CREATE TABLE %s (\n"
-    "%s"				/* Optional bin */
-    "matches int unsigned not null,	# Number of bases that match that aren't repeats\n"
-    "misMatches int unsigned not null,	# Number of bases that don't match\n"
-    "repMatches int unsigned not null,	# Number of bases that match but are part of repeats\n"
-    "nCount int unsigned not null,	# Number of 'N' bases\n"
-    "qNumInsert int unsigned not null,	# Number of inserts in query\n"
-    "qBaseInsert int unsigned not null,	# Number of bases inserted in query\n"
-    "tNumInsert int unsigned not null,	# Number of inserts in target\n"
-    "tBaseInsert int unsigned not null,	# Number of bases inserted in target\n"
-    "strand char(2) not null,	# + or - for strand.  First character is query, second is target.\n"
-    "qName varchar(255) not null,	# Query sequence name\n"
-    "qSize int unsigned not null,	# Query sequence size\n"
-    "qStart int unsigned not null,	# Alignment start position in query\n"
-    "qEnd int unsigned not null,	# Alignment end position in query\n"
-    "tName varchar(255) not null,	# Target sequence name\n"
-    "tSize int unsigned not null,	# Target sequence size\n"
-    "tStart int unsigned not null,	# Alignment start position in target\n"
-    "tEnd int unsigned not null,	# Alignment end position in target\n"
-    "blockCount int unsigned not null,	# Number of blocks in alignment\n"
-    "blockSizes longblob not null,	# Size of each block\n"
-    "qStarts longblob not null,	# Start of each block in query.\n"
-    "tStarts longblob not null,	# Start of each block in target.\n";
-
-static char *indexString = 
-	  "#Indices\n"
-    "%s"                            /* Optional bin. */
-    "INDEX(qName(12))\n"
-")\n";
-
-
 struct psl *pslxLoad(char **row)
 /* Load a psl from row fetched with select * from psl
  * from database.  Dispose of this with pslFree(). */
@@ -569,21 +537,7 @@ else
 	    }
 	}
     else
-        {
-	char *s = cloneString(line);
-        while (line != NULL && line[0] == '#')
-            {
-            freeMem(s);
-            lineFileNext(lf, &line, &lineSize);
-            s = cloneString(line);
-            }
-	wordCount = chopLine(s, words);
-	if (wordCount < 21 || wordCount > 23 || (words[8][0] != '+' && words[8][0] != '-'))
-	    errAbort("%s is not a psLayout file", fileName);
-	else
-	    lineFileReuse(lf); 
-	freeMem(s);
-	}
+	lineFileReuse(lf); 
     }
 *retQueryType = qt;
 *retTargetType = tt;
@@ -1132,6 +1086,7 @@ void pslRc(struct psl *psl)
 unsigned tSize = psl->tSize, qSize = psl->qSize;
 unsigned blockCount = psl->blockCount, i;
 unsigned *tStarts = psl->tStarts, *qStarts = psl->qStarts, *blockSizes = psl->blockSizes;
+int mult = pslIsProtein(psl) ? 3 : 1;
 
 /* swap strand, forcing target to have an explict strand */
 psl->strand[0] = (psl->strand[0] != '-') ? '-' : '+';
@@ -1140,7 +1095,7 @@ psl->strand[2] = 0;
 
 for (i=0; i<blockCount; ++i)
     {
-    tStarts[i] = tSize - (tStarts[i] + blockSizes[i]);
+    tStarts[i] = tSize - (tStarts[i] + mult * blockSizes[i]);
     qStarts[i] = qSize - (qStarts[i] + blockSizes[i]);
     }
 reverseUnsigned(tStarts, blockCount);
@@ -1262,7 +1217,7 @@ for (i=0; i<psl->blockCount; ++i)
 fprintf(f, "</PRE>");
 }
 
-static void pslRecalcBounds(struct psl *psl)
+void pslRecalcBounds(struct psl *psl)
 /* Calculate qStart/qEnd tStart/tEnd at top level to be consistent
  * with blocks. */
 {
@@ -1454,47 +1409,6 @@ for (i=0; i<oldBlockCount; ++i)
 pslRecalcBounds(newPsl);
 return newPsl;
 }
-char* pslGetCreateSql(char* table, unsigned options, int tNameIdxLen)
-/* Get SQL required to create PSL table.  Options is a bit set consisting
- * of PSL_TNAMEIX, PSL_WITH_BIN, and PSL_XA_FORMAT.  tNameIdxLen is
- * the number of characters in target name to index.  If greater than
- * zero, must specify PSL_TNAMEIX.  If zero and PSL_TNAMEIX is specified,
- * to will default to 8. */
-{
-struct dyString *sqlCmd = newDyString(2048);
-char *sqlCmdStr;
-char binIx[32];
-
-binIx[0] = '\0';
-
-/* check and default tNameIdxLen */
-if ((tNameIdxLen > 0) && !(options & PSL_TNAMEIX))
-    errAbort("pslGetCreateSql: must specify PSL_TNAMEIX with tNameIdxLen > 0");
-if ((options & PSL_TNAMEIX) && (tNameIdxLen == 0))
-    tNameIdxLen = 8;
-
-/* setup tName and bin index fields */
-if (options & PSL_WITH_BIN)
-    {
-    if (options & PSL_TNAMEIX)
-	safef(binIx, sizeof(binIx), "INDEX(tName(%d),bin),\n", tNameIdxLen);
-    else
-	safef(binIx, sizeof(binIx), "INDEX(bin),\n");
-    }
-else if (options & PSL_TNAMEIX)
-    safef(binIx, sizeof(binIx), "INDEX(tName(%d)),\n", tNameIdxLen);
-dyStringPrintf(sqlCmd, createString, table, 
-    ((options & PSL_WITH_BIN) ? "bin smallint unsigned not null,\n" : ""));
-if (options & PSL_XA_FORMAT)
-    {
-    dyStringPrintf(sqlCmd, "qSeq longblob not null,\n");
-    dyStringPrintf(sqlCmd, "tSeq longblob not null,\n");
-    }
-dyStringPrintf(sqlCmd, indexString, binIx);
-sqlCmdStr = cloneString(sqlCmd->string);
-dyStringFree(&sqlCmd);
-return sqlCmdStr;
-}
 
 static void printPslDesc(char* pslDesc, FILE* out, struct psl* psl)
 /* print description of a PSL on first error */
@@ -1529,12 +1443,11 @@ va_end(args);
 static void chkBlkRanges(char* pslDesc, FILE* out, struct psl* psl,
                          char* pName, char* pLabel, char pCLabel, char pStrand,
                          unsigned pSize, unsigned pStart, unsigned pEnd,
-                         unsigned iBlk, unsigned* blockSizes,
-                         unsigned* pBlockStarts, int* errCount)
+                         unsigned iBlk, unsigned* pBlockStarts, int* errCount)
 /* check the target or query ranges in a PSL incrementing errorCnt */
 {
 unsigned blkStart = pBlockStarts[iBlk];
-unsigned blkEnd = blkStart+blockSizes[iBlk];
+unsigned blkEnd = blkStart+psl->blockSizes[iBlk];
 /* translate stand to genomic coords */
 unsigned gBlkStart = (pStrand == '+') ? blkStart : (pSize - blkEnd);
 unsigned gBlkEnd = (pStrand == '+') ? blkEnd : (pSize - blkStart);
@@ -1561,7 +1474,7 @@ if (gBlkEnd > pEnd)
              pName, pLabel, iBlk, gBlkEnd, pCLabel, pEnd);
 if (iBlk > 0)
     {
-    unsigned prevBlkEnd = pBlockStarts[iBlk-1]+blockSizes[iBlk-1];
+    unsigned prevBlkEnd = pBlockStarts[iBlk-1]+psl->blockSizes[iBlk-1];
     if (blkStart < prevBlkEnd)
         chkError(pslDesc, out, psl, errCount,
                  "\t%s %s block %u start %u < previous block end %u\n",
@@ -1572,7 +1485,6 @@ if (iBlk > 0)
 static void chkRanges(char* pslDesc, FILE* out, struct psl* psl,
                       char* pName, char* pLabel, char pCLabel, char pStrand,
                       unsigned pSize, unsigned pStart, unsigned pEnd,
-                      unsigned blockCount, unsigned* blockSizes,
                       unsigned* pBlockStarts, int blockSizeMult, int* errCount)
 /* check the target or query ranges in a PSL, increment errorCnt */
 {
@@ -1589,20 +1501,53 @@ if (pEnd > pSize)
 unsigned pStartStrand = pStart, pEndStrand = pEnd;
 if (pStrand != '+')
     reverseUnsignedRange(&pStartStrand, &pEndStrand, pSize);
-unsigned lastBlkEnd = pBlockStarts[blockCount-1] + (blockSizeMult * blockSizes[blockCount-1]);
+unsigned lastBlkEnd = pBlockStarts[psl->blockCount-1] + (blockSizeMult * psl->blockSizes[psl->blockCount-1]);
 if ((pStartStrand != pBlockStarts[0]) || (pEndStrand != lastBlkEnd))
     chkError(pslDesc, out, psl, errCount,
              "\t%s strand \"%c\" adjusted %cStart-%cEnd range %u-%u != block range %u-%u\n",
              pName, pStrand, pCLabel, pCLabel, pStartStrand, pEndStrand, pBlockStarts[0], lastBlkEnd);
 
-for (iBlk = 0; iBlk < blockCount; iBlk++)
+for (iBlk = 0; iBlk < psl->blockCount; iBlk++)
     chkBlkRanges(pslDesc, out, psl, pName, pLabel, pCLabel, pStrand,
-                 pSize, pStart, pEnd, iBlk, blockSizes, pBlockStarts, errCount);
+                 pSize, pStart, pEnd, iBlk, pBlockStarts, errCount);
 }
 
-int pslCheck(char *pslDesc, FILE* out, struct psl* psl)
-/* Validate a PSL for consistency.  pslDesc is printed the error messages
- * to file out (open /dev/null to discard). Return count of errors. */
+
+static void chkInsertCounts(char* pslDesc, FILE* out, struct psl* psl,
+                            char* pName, char pCLabel, unsigned* pBlockStarts,
+                            unsigned pNumInsert, unsigned pBaseInsert,
+                            int* errCount)
+/* check the insert counts, incrementing errorCnt */
+{
+unsigned numInsert = 0, baseInsert = 0;
+int iBlk;
+
+for (iBlk = 1; iBlk < psl->blockCount; iBlk++)
+    {
+    unsigned gapSize = pBlockStarts[iBlk] - (pBlockStarts[iBlk-1]+psl->blockSizes[iBlk-1]);
+    if (gapSize > 0)
+        {
+        numInsert++;
+        baseInsert += gapSize;
+        }
+    }
+if (numInsert != pNumInsert)
+    chkError(pslDesc, out, psl, errCount,
+             "\t%s %cNumInsert %u != expected %u\n",
+             pName, pCLabel, pNumInsert, numInsert);
+if (baseInsert != pBaseInsert)
+    chkError(pslDesc, out, psl, errCount,
+             "\t%s %cBaseInsert %u != expected %u\n",
+             pName, pCLabel, pBaseInsert, baseInsert);
+}
+
+int pslCheck2(unsigned opts, char *pslDesc, FILE* out, struct psl* psl)
+/* Validate a PSL for consistency.  pslDesc is printed the error messages to
+ * file out (open /dev/null to discard). Return count of errors.  Option
+ * PSL_CHECK_IGNORE_INSERT_CNTS doesn't validate problems insert counts fields
+ * in each PSL.  Useful because protein PSL doesn't seen to compute these in a
+ * consistent way.
+ */
 {
 static char* VALID_STRANDS[] = {
     "+", "-", "++", "+-", "-+", "--", NULL
@@ -1620,15 +1565,26 @@ if (VALID_STRANDS[i] == NULL)
     chkError(pslDesc, out, psl, &errCount,
              "\tinvalid PSL strand: \"%s\"\n", psl->strand);
 
-/* check target */
-chkRanges(pslDesc, out, psl, psl->tName, "target", 't', pslTStrand(psl), psl->tSize, psl->tStart, psl->tEnd,
-          psl->blockCount, psl->blockSizes, psl->tStarts, tBlockSizeMult, &errCount);
-
 /* check query */
 chkRanges(pslDesc, out, psl, psl->qName, "query", 'q', pslQStrand(psl), psl->qSize, psl->qStart, psl->qEnd,
-          psl->blockCount, psl->blockSizes, psl->qStarts, 1, &errCount);
+          psl->qStarts, 1, &errCount);
+if ((opts & PSL_CHECK_IGNORE_INSERT_CNTS) == 0)
+    chkInsertCounts(pslDesc, out, psl, psl->qName, 'q', psl->qStarts, psl->qNumInsert, psl->qBaseInsert, &errCount);
+
+/* check target */
+chkRanges(pslDesc, out, psl, psl->tName, "target", 't', pslTStrand(psl), psl->tSize, psl->tStart, psl->tEnd,
+          psl->tStarts, tBlockSizeMult, &errCount);
+if ((opts & PSL_CHECK_IGNORE_INSERT_CNTS) == 0)
+    chkInsertCounts(pslDesc, out, psl, psl->tName, 't', psl->tStarts, psl->tNumInsert, psl->tBaseInsert, &errCount);
 
 return errCount;
+}
+
+int pslCheck(char *pslDesc, FILE* out, struct psl* psl)
+/* Validate a PSL for consistency.  pslDesc is printed the error messages
+ * to file out (open /dev/null to discard). Return count of errors. */
+{
+return pslCheck2(0, pslDesc, out, psl);
 }
 
 struct hash *readPslToBinKeeper(char *sizeFileName, char *pslFileName)
@@ -1897,26 +1853,67 @@ if (psl->qSequence != NULL)
 *blockSpacePtr = newSpace;
 }
 
-static boolean getNextCigarOp(char **ptr, char *op, int *size)
-/* parts the next cigar op */
+void pslComputeInsertCounts(struct psl *psl)
+/* compute numInsert and baseInsert fields from the blocks */
+{
+psl->qNumInsert = psl->qBaseInsert = 0;
+psl->tNumInsert = psl->tBaseInsert = 0;
+int iBlk;
+
+for (iBlk = 1; iBlk < psl->blockCount; iBlk++)
+    {
+    unsigned qGapSize = psl->qStarts[iBlk] - (psl->qStarts[iBlk-1]+psl->blockSizes[iBlk-1]);
+    if (qGapSize != 0)
+        {
+        psl->qNumInsert++;
+        psl->qBaseInsert += qGapSize;
+        }
+    unsigned tGapSize = psl->tStarts[iBlk] - (psl->tStarts[iBlk-1]+psl->blockSizes[iBlk-1]);
+    if (tGapSize != 0)
+        {
+        psl->tNumInsert++;
+        psl->tBaseInsert += tGapSize;
+        }
+    }
+}
+
+static boolean getNextCigarOp(char *startPtr, boolean reverse, char **ptr, char *op, int *size)
+/* gets one cigar op out of the CIGAR string.  Reverse the order if asked */
 {
 char *str = *ptr;
 
-if ((str == NULL) || (*str == 0))
+if (str == NULL)
     return FALSE;
 
-char *end = strchr(str, '+');
-if (end)
+if ((!reverse && (*str == 0)) || (reverse && (str == startPtr)))
+    return FALSE;
+
+// between each cigar op there could be nothing, or a space, or a plus
+if (reverse)
     {
-    *end = 0;
-    *ptr = end + 1;
+    char *end = str - 1;
+    for(;*end ; end--)
+	{
+	if (isalpha(*end))
+	    break;
+	}
+    str = end;
+    *ptr = end;
     }
-else 
-    *ptr = NULL;
+else
+    {
+    char *end = str + 1;
+    for(;*end ; end++)
+	{
+	if (! (isdigit(*end)  || (*end == ' ') || (*end == '+')))
+	    break;
+	}
+
+    *ptr = end;
+    }
 
 *op = *str++;
 *size = atoi(str);
-
 return TRUE;
 }
 
@@ -1929,11 +1926,10 @@ struct psl* pslFromGff3Cigar(char *qName, int qSize, int qStart, int qEnd,
 int blocksAlloced = 4;
 struct psl *psl = pslNew(qName, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, strand, blocksAlloced, 0);
 
-char cigarSpec[strlen(cigar+1)];  // copy since parsing is destructive
-strcpy(cigarSpec, cigar);
-char *cigarNext = cigarSpec;
 char op;
 int size;
+int totalSize = 0;
+
 int qNext = qStart, qBlkEnd = qEnd;
 if (strand[0] == '-')
     reverseIntRange(&qNext, &qBlkEnd, qSize);
@@ -1941,34 +1937,72 @@ int tNext = tStart, tBlkEnd = tEnd;
 if (strand[1] == '-')
     reverseIntRange(&tNext, &tBlkEnd, tSize);
 
-while(getNextCigarOp(&cigarNext, &op, &size))
+if (cigar == NULL)
     {
-    switch (op)
-        {
-        case 'M': // match or mismatch (gapless aligned block)
-            if (psl->blockCount == blocksAlloced)
-                pslGrow(psl, &blocksAlloced);
-
-            psl->blockSizes[psl->blockCount] = size;
-            psl->qStarts[psl->blockCount] = qNext;
-            psl->tStarts[psl->blockCount] = tNext;
-            psl->blockCount++;
-            tNext += size;
-            qNext += size;
-            break;
-        case 'I': // inserted in target
-            tNext += size;
-            break;
-        case 'D': // deleted from target
-            qNext += size;
-            break;
-        
-        default:
-            errAbort("unrecognized CIGAR op %c in %s", op, cigar);
-        }
+    // no cigar means one block
+    size = qEnd - qStart;
+    totalSize += size;
+    psl->blockSizes[psl->blockCount] = size;
+    psl->qStarts[psl->blockCount] = qNext;
+    psl->tStarts[psl->blockCount] = tNext;
+    psl->blockCount++;
+    tNext += size;
+    qNext += size;
     }
-assert(qNext == qBlkEnd);
-assert(tNext == tBlkEnd);
+else
+    {
+    if (strand[0] == '-' && strand[1] == '-')
+        errAbort("GFF3 spec is vague about Gap when both strands are '-'; not implemented yet.");
+    char cigarSpec[strlen(cigar)+1];  // copy since parsing is destructive
+    safecpy(cigarSpec, sizeof cigarSpec, cigar);
+    char *cigarNext = cigarSpec;
+    while(getNextCigarOp(cigarSpec, FALSE, &cigarNext, &op, &size))
+	{
+	switch (op)
+	    {
+	    case 'M': // match or mismatch (gapless aligned block)
+		if (psl->blockCount == blocksAlloced)
+		    pslGrow(psl, &blocksAlloced);
+
+		totalSize += size;
+		psl->blockSizes[psl->blockCount] = size;
+		psl->qStarts[psl->blockCount] = qNext;
+		psl->tStarts[psl->blockCount] = tNext;
+		psl->blockCount++;
+		tNext += size;
+		qNext += size;
+		break;
+	    case 'I': // inserted in target
+		tNext += size;
+		break;
+	    case 'D': // deleted from target
+		qNext += size;
+		break;
+	    
+	    default:
+		errAbort("unrecognized CIGAR op %c in %s", op, cigar);
+	    }
+	}
+    }
+
+/* CIGARs starting/ending with indels require adjusting of query/target ranges,
+ * as PSL starts/ends with matches */
+psl->qStart = psl->qStarts[0];
+psl->qEnd = pslQEnd(psl, psl->blockCount-1);
+if (strand[0] == '-')
+    reverseIntRange(&psl->qStart, &psl->qEnd, qSize);
+psl->tStart = psl->tStarts[0];
+psl->tEnd = pslTEnd(psl, psl->blockCount-1);
+if (strand[1] == '-')
+    reverseIntRange(&psl->tStart, &psl->tEnd, tSize);
+
+/* sanity check */
+if (qNext != qBlkEnd)
+    errAbort("CIGAR query length does not match specified query range %s:%d-%d", qName, qStart, qEnd);
+if (tNext != tBlkEnd)
+    errAbort("CIGAR target length does not match specified target range %s:%d-%d", tName, tStart, tEnd);
+psl->match = totalSize;
+pslComputeInsertCounts(psl);
 return psl;
 }
 
@@ -2006,3 +2040,92 @@ float aligned = psl->match + psl->misMatch + psl->repMatch;
 return aligned/(float)psl->qSize;
 }
 
+struct psl* pslClone(struct psl *psl)
+/* clone a psl */
+{
+struct psl* pslCp = pslNew(psl->qName, psl->qSize, psl->qStart, psl->qEnd,
+                           psl->tName, psl->tSize, psl->tStart, psl->tEnd,
+                           psl->strand, psl->blockCount,
+                           ((psl->tSequence != NULL) ? PSL_XA_FORMAT : 0));
+pslCp->match = psl->match;
+pslCp->misMatch = psl->misMatch;
+pslCp->repMatch = psl->repMatch;
+pslCp->nCount = psl->nCount;
+pslCp->qNumInsert = psl->qNumInsert;
+pslCp->qBaseInsert = psl->qBaseInsert;
+pslCp->tNumInsert = psl->tNumInsert;
+pslCp->tBaseInsert = psl->tBaseInsert;
+int iBlk;
+for (iBlk = 0; iBlk < psl->blockCount; iBlk++)
+    {
+    pslCp->blockSizes[iBlk] = psl->blockSizes[iBlk];
+    pslCp->qStarts[iBlk] = psl->qStarts[iBlk];
+    pslCp->tStarts[iBlk] = psl->tStarts[iBlk];
+    if (psl->qSequence != NULL)
+        pslCp->qSequence[iBlk] = cloneString(psl->qSequence[iBlk]);
+    if (psl->tSequence != NULL)
+        pslCp->tSequence[iBlk] = cloneString(psl->tSequence[iBlk]);
+    pslCp->blockCount++;
+    }
+return pslCp;
+}
+
+int cmpChrom(char *a, char *b)
+/* Compare two chromosomes. */
+{
+return cmpStringsWithEmbeddedNumbers(a, b);
+}
+
+
+int pslCmpTargetScore(const void *va, const void *vb)
+/* Compare to sort based on target then score. */
+{
+const struct psl *a = *((struct psl **)va);
+const struct psl *b = *((struct psl **)vb);
+int diff = cmpChrom(a->tName, b->tName);
+if (diff == 0)
+    diff = pslScore(b) - pslScore(a);
+return diff;
+}
+
+int pslCmpTargetStart(const void *va, const void *vb)
+/* Compare to sort based on target start. */
+{
+const struct psl *a = *((struct psl **)va);
+const struct psl *b = *((struct psl **)vb);
+int diff = cmpChrom(a->tName, b->tName);
+if (diff == 0)
+    diff = a->tStart - b->tStart;
+return diff;
+}
+
+char *pslSortList[] = {"query,score", "query,start", "chrom,score", "chrom,start", "score"};
+
+void pslSortListByVar(struct psl **pslList, char *sort)
+/* Sort a list of psls using the method definied in the sort string. */
+{
+if (sameString(sort, "query,start"))
+    {
+    slSort(pslList, pslCmpQuery);
+    }
+else if (sameString(sort, "query,score"))
+    {
+    slSort(pslList, pslCmpQueryScore);
+    }
+else if (sameString(sort, "score"))
+    {
+    slSort(pslList, pslCmpScore);
+    }
+else if (sameString(sort, "chrom,start"))
+    {
+    slSort(pslList, pslCmpTargetStart);
+    }
+else if (sameString(sort, "chrom,score"))
+    {
+    slSort(pslList, pslCmpTargetScore);
+    }
+else
+    {
+    slSort(pslList, pslCmpQueryScore);
+    }
+}

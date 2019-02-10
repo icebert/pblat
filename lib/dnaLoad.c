@@ -1,5 +1,8 @@
 /* dnaLoad - Load dna from a variaty of file formats. */
 
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 /* Modified by Meng Wang. 2012-2014 */
 
 #include "common.h"

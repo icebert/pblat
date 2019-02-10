@@ -9,28 +9,34 @@
 #include "obscure.h"
 
 
-static char *__trashDir = ".";
+static char *_trashDir()
+/* Return the path for temporary files: default is "." but env var JKTRASH can override. */
+{
+static char *__trashDir = NULL;
+if (__trashDir == NULL)
+    {
+    char *jktrashDir = getenv("JKTRASH");
+    __trashDir = jktrashDir ? jktrashDir : ".";
+    }
+return __trashDir;
+}
 
 static void _makeTempName(struct tempName *tn, char *base, char *suffix)
 /* Figure out a temp name, and how CGI and HTML will access it. */
 {
-char *tname = rTempName(__trashDir, base, suffix);
+char *tname = rTempName(_trashDir(), base, suffix);
 strcpy(tn->forCgi, tname);
 strcpy(tn->forHtml, tn->forCgi);
 }
 
 static char *_cgiDir()
+/* Return the path for CGI executables: default is "" but env var JKWEB can override. */
 {
 char *jkwebDir;
 if ((jkwebDir = getenv("JKWEB")) == NULL)
     return "";
 else
     return jkwebDir;
-}
-
-static char *_trashDir()
-{
-return __trashDir;
 }
 
 static double _speed()

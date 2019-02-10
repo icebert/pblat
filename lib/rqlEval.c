@@ -1,6 +1,9 @@
 /* rqlEval - evaluate tree returned by rqlParse given a record and function to lookup fields
  * in the record. . */
 
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "linefile.h"
 #include "hash.h"
@@ -138,6 +141,112 @@ switch (lv.type)
 return res;
 }
 
+static struct rqlEval rqlEvalAdd(struct rqlParse *p, void *record, RqlEvalLookup lookup,
+	struct lm *lm)
+/* Return a + b. */
+{
+struct rqlParse *lp = p->children;
+struct rqlParse *rp = lp->next;
+struct rqlEval lv = rqlLocalEval(lp, record, lookup, lm);
+struct rqlEval rv = rqlLocalEval(rp, record, lookup, lm);
+struct rqlEval res;
+switch (lv.type)
+    {
+    case rqlTypeInt:
+	res.val.i = (lv.val.i + rv.val.i);
+	break;
+    case rqlTypeDouble:
+	res.val.x = (lv.val.x + rv.val.x);
+	break;
+    default:
+	internalErr();
+	res.val.b = FALSE;
+	break;
+    }
+res.type = lv.type;
+return res;
+}
+
+static struct rqlEval rqlEvalSubtract(struct rqlParse *p, void *record, RqlEvalLookup lookup,
+	struct lm *lm)
+/* Return a - b. */
+{
+struct rqlParse *lp = p->children;
+struct rqlParse *rp = lp->next;
+struct rqlEval lv = rqlLocalEval(lp, record, lookup, lm);
+struct rqlEval rv = rqlLocalEval(rp, record, lookup, lm);
+struct rqlEval res;
+switch (lv.type)
+    {
+    case rqlTypeInt:
+	res.val.i = (lv.val.i - rv.val.i);
+	break;
+    case rqlTypeDouble:
+	res.val.x = (lv.val.x - rv.val.x);
+	break;
+    default:
+	internalErr();
+	res.val.b = FALSE;
+	break;
+    }
+res.type = lv.type;
+return res;
+}
+
+static struct rqlEval rqlEvalMultiply(struct rqlParse *p, void *record, RqlEvalLookup lookup,
+	struct lm *lm)
+/* Return a * b. */
+{
+struct rqlParse *lp = p->children;
+struct rqlParse *rp = lp->next;
+struct rqlEval lv = rqlLocalEval(lp, record, lookup, lm);
+struct rqlEval rv = rqlLocalEval(rp, record, lookup, lm);
+struct rqlEval res;
+switch (lv.type)
+    {
+    case rqlTypeInt:
+	res.val.i = (lv.val.i * rv.val.i);
+	break;
+    case rqlTypeDouble:
+	res.val.x = (lv.val.x * rv.val.x);
+	break;
+    default:
+	internalErr();
+	res.val.b = FALSE;
+	break;
+    }
+res.type = lv.type;
+return res;
+}
+
+static struct rqlEval rqlEvalDivide(struct rqlParse *p, void *record, RqlEvalLookup lookup,
+	struct lm *lm)
+/* Return a / b. */
+{
+struct rqlParse *lp = p->children;
+struct rqlParse *rp = lp->next;
+struct rqlEval lv = rqlLocalEval(lp, record, lookup, lm);
+struct rqlEval rv = rqlLocalEval(rp, record, lookup, lm);
+struct rqlEval res;
+switch (lv.type)
+    {
+    case rqlTypeInt:
+	res.val.i = (lv.val.i / rv.val.i);
+	break;
+    case rqlTypeDouble:
+	res.val.x = (lv.val.x / rv.val.x);
+	break;
+    default:
+	internalErr();
+	res.val.b = FALSE;
+	break;
+    }
+res.type = lv.type;
+return res;
+}
+
+
+
 static struct rqlEval rqlEvalLike(struct rqlParse *p, void *record, RqlEvalLookup lookup,
 	struct lm *lm)
 /* Return true if r like l . */
@@ -272,7 +381,7 @@ switch (p->op)
     case rqlOpStringToInt:
 	res = rqlLocalEval(p->children, record, lookup, lm);
 	res.type = rqlTypeInt;
-	res.val.i = atoi(res.val.s);
+	res.val.i = atoll(res.val.s);
 	break;
     case rqlOpDoubleToInt:
 	res = rqlLocalEval(p->children, record, lookup, lm);
@@ -313,6 +422,20 @@ switch (p->op)
 
     case rqlOpArrayIx:
        res = rqlEvalArrayIx(p, record, lookup, lm);
+       break;
+
+    /* Mathematical ops, simple binary type */
+    case rqlOpAdd:
+       res = rqlEvalAdd(p, record, lookup, lm);
+       break;
+    case rqlOpSubtract:
+       res = rqlEvalSubtract(p, record, lookup, lm);
+       break;
+    case rqlOpMultiply:
+       res = rqlEvalMultiply(p, record, lookup, lm);
+       break;
+    case rqlOpDivide:
+       res = rqlEvalDivide(p, record, lookup, lm);
        break;
 
     default:

@@ -1,4 +1,8 @@
 /* filePath - stuff to handle file name parsing. */
+
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "filePath.h"
 
@@ -111,6 +115,18 @@ else
 return result;
 }
 
+char *mustExpandRelativePath(char *dir, char* relPath)
+/* Given a dir and relative path, expand path.
+ * Handy for processing symlinks. errAbort if expand fails.
+ * Result should be freeMem'd.*/
+{
+char *path = expandRelativePath(dir, relPath);
+verbose(3, "dir=%s\nrelPath=%s\npath=%s\n", dir, relPath, path);
+if (!path)
+    errAbort("Too many .. in path %s to make relative to submitDir %s\n", relPath, dir);
+return path;
+}
+
 char *pathRelativeToFile(char *baseFile, char *relPath)
 /* Given a base file name and a path relative to that, return
  * relative path interpreted as if it were seen from the
@@ -127,4 +143,73 @@ int dirLen = strlen(dir);
 if (dirLen > 0 && dir[dirLen-1] == '/')
      dir[dirLen-1] = 0;
 return expandRelativePath(dir, relPath);
+}
+
+char *mustPathRelativeToFile(char *baseFile, char *relPath)
+/* Make Path Relative To File or Abort. */
+{
+char *path = pathRelativeToFile(baseFile, relPath);
+verbose(3, "baseFile=%s\nrelPath=%s\npath=%s\n", baseFile, relPath, path);
+if (!path)
+    errAbort("Too many .. in symlink path %s to make relative to %s\n", relPath, baseFile);
+return path;
+}
+
+char *makeRelativePath(char *from, char *to)
+/* Calculate a relative path from one absolute directory/file to another.
+ * Assumptions: both from and to are canonicalized absolute paths beginning
+ * at "/" or "//".  Filenames are okay, but all directory names must end with
+ * a "/" to distinguish them from files.
+ * e.g., /test/dir/ is a directory, but /test/dir is a file.
+ */
+{
+int i, j, toCount, fromCount;
+char fromDir[PATH_LEN];
+char toDir[PATH_LEN], toFile[FILENAME_LEN], toExt[FILEEXT_LEN];
+char relPath [PATH_LEN] = "";
+char *fromDirList[PATH_LEN], *toDirList[PATH_LEN];
+boolean fromStartsDoubleSlash = FALSE, toStartsDoubleSlash = FALSE;
+
+if (startsWith("//", from) && from[2] != '/')
+    {
+    fromStartsDoubleSlash = TRUE;
+    from[1] = '_'; // prevent initial // from being misinterpreted
+    }
+if (startsWith("//", to) && to[2] != '/')
+    {
+    toStartsDoubleSlash = TRUE;
+    to[1] = '_'; // prevent initial // from being misinterpreted
+    }
+
+splitPath(from, fromDir, NULL, NULL);
+splitPath(to, toDir, toFile, toExt);
+
+fromCount = chopByChar(fromDir, '/', fromDirList, ArraySize(fromDirList));
+toCount   = chopByChar(toDir,   '/', toDirList,   ArraySize(toDirList));
+
+if (fromStartsDoubleSlash == TRUE)
+    fromDirList[1][0] = '/';
+if (toStartsDoubleSlash == TRUE)
+    toDirList[1][0] = '/';
+    
+
+for (i=1; i < min(fromCount-1, toCount-1); i++)
+    {
+    if (!sameString(fromDirList[i], toDirList[i]))
+        break;
+    }
+for (j=i; j < fromCount-1; j++)
+    {
+    safecat(relPath, sizeof relPath, "../");
+    }
+for (j=i; j < toCount-1; j++)
+    {
+    safecat(relPath, sizeof relPath, toDirList[j]);
+    safecat(relPath, sizeof relPath, "/");
+    }
+
+safecat(relPath, sizeof relPath, toFile);
+safecat(relPath, sizeof relPath, toExt);
+
+return cloneString(relPath);
 }

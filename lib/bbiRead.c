@@ -1,11 +1,13 @@
 /* bbiRead - Big Binary Indexed file.  Stuff that's common between bigWig and bigBed on the 
  * read side. */
 
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "linefile.h"
 #include "hash.h"
 #include "obscure.h"
-#include "localmem.h"
 #include "zlibFace.h"
 #include "bPlusTree.h"
 #include "hmmstats.h"
@@ -115,9 +117,7 @@ bbi->definedFieldCount = udcReadBits16(udc, isSwapped);
 bbi->asOffset = udcReadBits64(udc, isSwapped);
 bbi->totalSummaryOffset = udcReadBits64(udc, isSwapped);
 bbi->uncompressBufSize = udcReadBits32(udc, isSwapped);
-
-/* Skip over reserved area. */
-udcSeek(udc, 64);
+bbi->extensionOffset = udcReadBits64(udc, isSwapped);
 
 /* Read zoom headers. */
 int i;
@@ -133,6 +133,15 @@ for (i=0; i<bbi->zoomLevels; ++i)
     }
 slReverse(&levelList);
 bbi->levelList = levelList;
+
+/* Deal with header extension if any. */
+if (bbi->extensionOffset != 0)
+    {
+    udcSeek(udc, bbi->extensionOffset);
+    bbi->extensionSize = udcReadBits16(udc, isSwapped);
+    bbi->extraIndexCount = udcReadBits16(udc, isSwapped);
+    bbi->extraIndexListOffset = udcReadBits64(udc, isSwapped);
+    }
 
 /* Attach B+ tree of chromosome names and ids. */
 udcSeek(udc, bbi->chromTreeOffset);
@@ -157,6 +166,16 @@ if (bwf != NULL)
     }
 }
 
+static void chromIdSizeHandleSwapped(boolean isSwapped, struct bbiChromIdSize *idSize)
+/* Swap bytes in chromosome Id and Size as needed. */
+{
+if (isSwapped)
+    {
+    idSize->chromId = byteSwap32(idSize->chromId);
+    idSize->chromSize = byteSwap32(idSize->chromSize);
+    }
+}
+
 
 struct fileOffsetSize *bbiOverlappingBlocks(struct bbiFile *bbi, struct cirTreeFile *ctf,
 	char *chrom, bits32 start, bits32 end, bits32 *retChromId)
@@ -165,8 +184,7 @@ struct fileOffsetSize *bbiOverlappingBlocks(struct bbiFile *bbi, struct cirTreeF
 struct bbiChromIdSize idSize;
 if (!bptFileFind(bbi->chromBpt, chrom, strlen(chrom), &idSize, sizeof(idSize)))
     return NULL;
-if (bbi->isSwapped)
-    idSize.chromId = byteSwap32(idSize.chromId);
+chromIdSizeHandleSwapped(bbi->isSwapped, &idSize);
 if (retChromId != NULL)
     *retChromId = idSize.chromId;
 return cirTreeFindOverlappingBlocks(ctf, idSize.chromId, start, end);
@@ -186,15 +204,11 @@ struct chromNameCallbackContext *c = context;
 struct bbiChromInfo *info;
 struct bbiChromIdSize *idSize = val;
 assert(valSize == sizeof(*idSize));
+chromIdSizeHandleSwapped(c->isSwapped, idSize);
 AllocVar(info);
 info->name = cloneStringZ(key, keySize);
 info->id = idSize->chromId;
 info->size = idSize->chromSize;
-if (c->isSwapped)
-    {
-    info->id = byteSwap32(info->id);
-    info->size = byteSwap32(info->size);
-    }
 slAddHead(&c->list, info);
 }
 
@@ -215,6 +229,7 @@ bits32 bbiChromSize(struct bbiFile *bbi, char *chrom)
 struct bbiChromIdSize idSize;
 if (!bptFileFind(bbi->chromBpt, chrom, strlen(chrom), &idSize, sizeof(idSize)))
     return 0;
+chromIdSizeHandleSwapped(bbi->isSwapped, &idSize);
 return idSize.chromSize;
 }
 
@@ -303,12 +318,29 @@ sum->chromId = udcReadBits32(udc, isSwapped);
 sum->start = udcReadBits32(udc, isSwapped);
 sum->end = udcReadBits32(udc, isSwapped);
 sum->validCount = udcReadBits32(udc, isSwapped);
+// looks like a bug to me, these should call udcReadFloat() 
 udcMustReadOne(udc, sum->minVal);
 udcMustReadOne(udc, sum->maxVal);
 udcMustReadOne(udc, sum->sumData);
 udcMustReadOne(udc, sum->sumSquares);
 }
 #endif /* UNUSED */
+
+static void bbiSummaryHandleSwapped(struct bbiFile *bbi, struct bbiSummaryOnDisk *in)
+/* Swap integer fields in summary as needed. */
+{
+if (bbi->isSwapped)
+    {
+    in->chromId = byteSwap32(in->chromId);
+    in->start = byteSwap32(in->start);
+    in->end = byteSwap32(in->end);
+    in->validCount = byteSwap32(in->validCount);
+    in->minVal = byteSwapFloat(in->minVal);
+    in->maxVal = byteSwapFloat(in->maxVal);
+    in->sumData = byteSwapFloat(in->sumData);
+    in->sumSquares = byteSwapFloat(in->sumSquares);
+    }
+}
 
 static struct bbiSummary *bbiSummaryFromOnDisk(struct bbiSummaryOnDisk *in)
 /* Create a bbiSummary unlinked to anything from input in onDisk format. */
@@ -326,7 +358,7 @@ out->sumSquares = in->sumSquares;
 return out;
 }
 
-static struct bbiSummary *bbiSummariesInRegion(struct bbiZoomLevel *zoom, struct bbiFile *bbi, 
+struct bbiSummary *bbiSummariesInRegion(struct bbiZoomLevel *zoom, struct bbiFile *bbi, 
 	int chromId, bits32 start, bits32 end)
 /* Return list of all summaries in region at given zoom level of bbiFile. */
 {
@@ -386,6 +418,7 @@ for (block = blockList; block != NULL; )
 	    {
 	    dSum = (void *)blockPt;
 	    blockPt += sizeof(*dSum);
+	    bbiSummaryHandleSwapped(bbi, dSum);
 	    if (dSum->chromId == chromId)
 		{
 		int s = max(dSum->start, start);
@@ -409,6 +442,23 @@ slReverse(&sumList);
 return sumList;
 }
 
+static int normalizeCount(struct bbiSummaryElement *el, double countFactor, 
+    double minVal, double maxVal, double sumData, double sumSquares)
+/* normalize statistics to be based on an integer number of valid bases 
+ * Integer value is the smallest integer not less than countFactor */
+{
+bits32 validCount = ceil(countFactor);
+double normFactor = (double)validCount/countFactor;
+
+el->validCount = validCount;
+el->minVal = minVal;
+el->maxVal = maxVal;
+el->sumData = sumData * normFactor;
+el->sumSquares = sumSquares * normFactor;
+
+return validCount;
+}
+
 static bits32 bbiSummarySlice(struct bbiFile *bbi, bits32 baseStart, bits32 baseEnd, 
 	struct bbiSummary *sumList, struct bbiSummaryElement *el)
 /* Update retVal with the average value if there is any data in interval.  Return number
@@ -421,6 +471,7 @@ if (sumList != NULL)
     double minVal = sumList->minVal;
     double maxVal = sumList->maxVal;
     double sumData = 0, sumSquares = 0;
+    double countFactor = 0.0;
 
     struct bbiSummary *sum;
     for (sum = sumList; sum != NULL && sum->start < baseEnd; sum = sum->next)
@@ -429,7 +480,7 @@ if (sumList != NULL)
 	if (overlap > 0)
 	    {
 	    double overlapFactor = (double)overlap / (sum->end - sum->start);
-	    validCount += sum->validCount * overlapFactor;
+	    countFactor += sum->validCount * overlapFactor;
 	    sumData += sum->sumData * overlapFactor;
 	    sumSquares += sum->sumSquares * overlapFactor;
 	    if (maxVal < sum->maxVal)
@@ -438,24 +489,20 @@ if (sumList != NULL)
 		minVal = sum->minVal;
 	    }
 	}
-    if (validCount > 0)
-	{
-	el->validCount = validCount;
-	el->minVal = minVal;
-	el->maxVal = maxVal;
-	el->sumData = sumData;
-	el->sumSquares = sumSquares;
-	}
+
+    if (countFactor > 0)
+	validCount = normalizeCount(el, countFactor, minVal, maxVal, sumData, sumSquares);
     }
 return validCount;
 }
 
 static int bbiChromId(struct bbiFile *bbi, char *chrom)
-/* Return chromosome size */
+/* Return chromosome Id */
 {
 struct bbiChromIdSize idSize;
 if (!bptFileFind(bbi->chromBpt, chrom, strlen(chrom), &idSize, sizeof(idSize)))
     return -1;
+chromIdSizeHandleSwapped(bbi->isSwapped, &idSize);
 return idSize.chromId;
 }
 
@@ -501,10 +548,11 @@ static bits32 bbiIntervalSlice(struct bbiFile *bbi, bits32 baseStart, bits32 bas
 /* Update retVal with the average value if there is any data in interval.  Return number
  * of valid data bases in interval. */
 {
-double validCount = 0;
+bits32 validCount = 0;
 
 if (intervalList != NULL)
     {
+    double countFactor = 0;
     struct bbiInterval *interval;
     double sumData = 0, sumSquares = 0;
     double minVal = intervalList->val;
@@ -519,7 +567,7 @@ if (intervalList != NULL)
 	    int intervalSize = interval->end - interval->start;
 	    double overlapFactor = (double)overlap / intervalSize;
 	    double intervalWeight = intervalSize * overlapFactor;
-	    validCount += intervalWeight;
+	    countFactor += intervalWeight;
 	    sumData += interval->val * intervalWeight;
 	    sumSquares += interval->val * interval->val * intervalWeight;
 	    if (maxVal < interval->val)
@@ -528,13 +576,10 @@ if (intervalList != NULL)
 		minVal = interval->val;
 	    }
 	}
-    el->validCount = round(validCount);
-    el->minVal = minVal;
-    el->maxVal = maxVal;
-    el->sumData = sumData;
-    el->sumSquares = sumSquares;
+
+    validCount = normalizeCount(el, countFactor, minVal, maxVal, sumData, sumSquares);
     }
-return round(validCount);
+return validCount;
 }
 
 
@@ -547,7 +592,7 @@ struct bbiInterval *intervalList = NULL, *interval;
 struct lm *lm = lmInit(0);
 intervalList = (*fetchIntervals)(bbi, chrom, start, end, lm);
 boolean result = FALSE;
-if (intervalList != NULL);
+if (intervalList != NULL)
     {
     int i;
     bits32 baseStart = start, baseEnd;
@@ -700,10 +745,9 @@ else if (bbi->version == 1)
 	for (i=0; i<zoomSectionCount; ++i)
 	    {
 	    /* Read, but ignore, position. */
-	    bits32 chromId, chromStart, chromEnd;
-	    chromId = udcReadBits32(udc, isSwapped);
-	    chromStart = udcReadBits32(udc, isSwapped);
-	    chromEnd = udcReadBits32(udc, isSwapped);
+	    udcReadBits32(udc, isSwapped);  // chromId
+	    udcReadBits32(udc, isSwapped);  // chromStart
+	    udcReadBits32(udc, isSwapped);  // chromEnd
 
 	    /* First time through set values, rest of time add to them. */
 	    if (i == 0)
@@ -736,3 +780,17 @@ time_t bbiUpdateTime(struct bbiFile *bbi)
 struct udcFile *udc = bbi->udc;
 return udcUpdateTime(udc);
 }
+
+char *bbiCachedChromLookup(struct bbiFile *bbi, int chromId, int lastChromId,
+    char *chromBuf, int chromBufSize)
+/* Return chromosome name corresponding to chromId.  Because this is a bit expensive,
+ * if you are doing this repeatedly pass in the chromId used in the previous call to
+ * this in lastChromId,  which will save it from doing the lookup again on the same
+ * chromosome.  Pass in -1 to lastChromId if this is the first time or if you can't be
+ * bothered.  The chromBufSize should be at greater or equal to bbi->keySize+1.  */
+{
+if (chromId != lastChromId)
+    bptStringKeyAtPos(bbi->chromBpt, chromId, chromBuf, chromBufSize);
+return chromBuf;
+}
+

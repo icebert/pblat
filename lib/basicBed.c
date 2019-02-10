@@ -7,6 +7,9 @@
  * There's additional bed-related code in src/hg/inc/bed.h.  This module contains the
  * stuff that's independent of the database and other genomic structures. */
 
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 
 #include "common.h"
 #include "hash.h"
@@ -17,6 +20,7 @@
 #include "rangeTree.h"
 #include "binRange.h"
 #include "asParse.h"
+#include "htmlColor.h"
 #include "basicBed.h"
 
 
@@ -162,6 +166,23 @@ const struct bed *b = *((struct bed **)vb);
 int a_size = a->chromEnd - a->chromStart;
 int b_size = b->chromEnd - b->chromStart;
 return (a_size - b_size);
+}
+
+int bedCmpChromStrandStartName(const void *va, const void *vb)
+/* Compare to sort based on chrom,strand,chromStart. */
+{
+const struct bed *a = *((struct bed **)va);
+const struct bed *b = *((struct bed **)vb);
+int dif;
+
+dif = strcmp(a->name, b->name);
+if (dif == 0)
+    dif = strcmp(a->chrom, b->chrom);
+if (dif == 0)
+    dif = strcmp(a->strand, b->strand);
+if (dif == 0)
+    dif = a->chromStart - b->chromStart;
+return dif;
 }
 
 int bedCmpChromStrandStart(const void *va, const void *vb)
@@ -449,14 +470,17 @@ slReverse(&list);
 return list;
 }
 
-void bedLoadAllReturnFieldCount(char *fileName, struct bed **retList, int *retFieldCount)
+void bedLoadAllReturnFieldCountAndRgb(char *fileName, struct bed **retList, int *retFieldCount, 
+    boolean *retRgb)
 /* Load bed of unknown size and return number of fields as well as list of bed items.
- * Ensures that all lines in bed file have same field count. */
+ * Ensures that all lines in bed file have same field count.  Also returns whether 
+ * column 9 is being used as RGB or not. */
 {
 struct bed *list = NULL;
 struct lineFile *lf = lineFileOpen(fileName, TRUE);
 char *line, *row[bedKnownFields];
 int fieldCount = 0;
+boolean isRgb = FALSE;
 
 while (lineFileNextReal(lf, &line))
     {
@@ -465,7 +489,11 @@ while (lineFileNextReal(lf, &line))
 	errAbort("file %s doesn't appear to be in bed format. At least 4 fields required, got %d", 
 		fileName, numFields);
     if (fieldCount == 0)
+	{
         fieldCount = numFields;
+	if (fieldCount >= 9)
+	    isRgb =  (strchr(row[8], ',') != NULL);
+	}
     else
         if (fieldCount != numFields)
 	    errAbort("Inconsistent number of fields in file. %d on line %d of %s, %d previously.",
@@ -476,12 +504,20 @@ lineFileClose(&lf);
 slReverse(&list);
 *retList = list;
 *retFieldCount = fieldCount;
+if (retRgb != NULL)
+   *retRgb = isRgb;
 }
 
-static void bedOutputN_Opt(struct bed *el, int wordCount, FILE *f,
+void bedLoadAllReturnFieldCount(char *fileName, struct bed **retList, int *retFieldCount)
+/* Load bed of unknown size and return number of fields as well as list of bed items.
+ * Ensures that all lines in bed file have same field count. */
+{
+bedLoadAllReturnFieldCountAndRgb(fileName, retList, retFieldCount, NULL);
+}
+
+void bedOutFlexible(struct bed *el, int wordCount, FILE *f,
 	char sep, char lastSep, boolean useItemRgb)
-/* Write a bed of wordCount fields, optionally interpreting field nine
-	as R,G,B values. */
+/* Write a bed of wordCount fields, optionally interpreting field nine as R,G,B values. */
 {
 int i;
 if (sep == ',') fputc('"',f);
@@ -619,14 +655,14 @@ fputc(lastSep,f);
 void bedOutputN(struct bed *el, int wordCount, FILE *f, char sep, char lastSep)
 /* Write a bed of wordCount fields. */
 {
-bedOutputN_Opt(el, wordCount, f, sep, lastSep, FALSE);
+bedOutFlexible(el, wordCount, f, sep, lastSep, FALSE);
 }
 
 void bedOutputNitemRgb(struct bed *el, int wordCount, FILE *f,
 	char sep, char lastSep)
 /* Write a bed of wordCount fields, interpret column 9 as RGB. */
 {
-bedOutputN_Opt(el, wordCount, f, sep, lastSep, TRUE);
+bedOutFlexible(el, wordCount, f, sep, lastSep, TRUE);
 }
 
 
@@ -989,6 +1025,16 @@ lineFileClose(&lf);
 return hash;
 }
 
+void bedOutputRgb(FILE *f, unsigned int color)
+/*      Output a string: "r,g,b" for 24 bit number */
+{
+int colorIx = (int)color;
+struct rgbColor rgb = colorIxToRgb(colorIx);
+//fprintf(f, "%d,%d,%d", rgb.r, rgb.g, rgb.b);
+// FIXME: endian issue ??
+fprintf(f, "%d,%d,%d", rgb.b, rgb.g, rgb.r);
+}
+
 int bedParseRgb(char *itemRgb)
 /*      parse a string: "r,g,b" into three unsigned char values
         returned as 24 bit number, or -1 for failure */
@@ -1007,6 +1053,21 @@ if ((wordCount != 3) || (!isdigit(row[0][0]) ||
 return ( ((atoi(row[0]) & 0xff) << 16) |
         ((atoi(row[1]) & 0xff) << 8) |
         (atoi(row[2]) & 0xff) );
+}
+
+int bedParseColor(char *colorSpec)
+/* Parse an HTML color string, a  string of 3 comma-sep unsigned color values 0-255, 
+ * or a 6-digit hex string  preceded by #. 
+ * O/w return unsigned integer value.  Return -1 on error */
+{
+if (strchr(colorSpec,','))
+    return bedParseRgb(colorSpec);
+unsigned rgb;
+if (htmlColorForCode(colorSpec, &rgb))
+    return rgb;
+if (htmlColorForName(colorSpec, &rgb))
+    return rgb;
+return sqlUnsigned(colorSpec);
 }
 
 long long bedTotalSize(struct bed *bedList)
@@ -1095,6 +1156,17 @@ return overlap;
 boolean bedExactMatch(struct bed *oldBed, struct bed *newBed)
 /* Return TRUE if it's an exact match. */
 {
+boolean oldCoding = (oldBed->thickStart != oldBed->thickEnd);
+boolean newCoding = (newBed->thickStart != newBed->thickEnd);
+
+if (oldCoding != newCoding)
+    return FALSE;
+/* non-coding bed's have different standards for what exactly
+ * goes into these fields.  The standard just says they should
+ * be equal */
+if (oldCoding && ((oldBed->thickStart != newBed->thickStart) ||
+    (oldBed->thickEnd != newBed->thickEnd)))
+    return FALSE;
 if (oldBed->blockCount != newBed->blockCount)
     return FALSE;
 int oldSize = bedTotalBlockSize(oldBed);
@@ -1305,7 +1377,7 @@ if (bedFieldCount >= 15)
     dyStringAppend(dy, "   float[expCount] expScores; \"Comma separated list of experiment scores.\"\n");
 int i;
 for (i=bedFieldCount+1; i<=totalFieldCount; ++i)
-    dyStringPrintf(dy, "string field%d;	\"Undocumented field\"\n", i+1);
+    dyStringPrintf(dy, "lstring field%d;	\"Undocumented field\"\n", i+1);
 dyStringAppend(dy, "   )\n");
 return dyStringCannibalize(&dy);
 }
@@ -1331,19 +1403,13 @@ return result;
 }
 
 
-void loadAndValidateBed(char *row[], int wordCount, int fieldCount, struct lineFile *lf, struct bed * bed, struct asObject *as, boolean isCt)
+void loadAndValidateBed(char *row[], int bedFieldCount, int fieldCount, struct lineFile *lf, struct bed * bed, struct asObject *as, boolean isCt)
 /* Convert a row of strings to a bed and validate the contents.  Abort with message if invalid data. Optionally validate bedPlus via asObject.
  * If a customTrack, then some errors are tolerated. */
 {
 int count;
 int *blockSizes = NULL;
-int tempBlockSizes[1024];
 int *chromStarts;
-int tempChromStarts[1024];
-int *expIds;
-int tempExpIds[1024];
-float *expScores;
-float tempExpScores[1024];
 
 bed->chrom = row[0];  // note this value is not cloned for speed, callers may need to clone it.
 
@@ -1361,7 +1427,7 @@ lineFileAllInts(lf, row, 2, &bed->chromEnd, FALSE, 4, "integer", FALSE);
 if (bed->chromEnd < bed->chromStart)
     lineFileAbort(lf, "chromStart after chromEnd (%u > %u)",
     	bed->chromStart, bed->chromEnd);
-if (wordCount > 3)
+if (bedFieldCount > 3)
     {
     bed->name = row[3];
     if (strlen(bed->name) > 255)
@@ -1369,14 +1435,14 @@ if (wordCount > 3)
     if (isCt)
 	bed->name = cloneString(bed->name);
     }
-if (wordCount > 4)
+if (bedFieldCount > 4)
     {
     lineFileAllInts(lf, row, 4, &bed->score, TRUE, 4, "integer", FALSE);
     if (!isCt && (bed->score < 0 || bed->score > 1000))
 	    lineFileAbort(lf, "score (%d) must be between 0 and 1000", bed->score);
     }
 
-if (wordCount > 5)
+if (bedFieldCount > 5)
     {
     if (!isCt && strlen(row[5]) > 1)
       lineFileAbort(lf, "Expecting + or - or . in strand, found [%s]",row[5]);
@@ -1385,11 +1451,11 @@ if (wordCount > 5)
     if (bed->strand[0] != '+' && bed->strand[0] != '-' && bed->strand[0] != '.')
       lineFileAbort(lf, "Expecting + or - or . in strand, found [%s]",row[5]);
     }
-if (wordCount > 6)
+if (bedFieldCount > 6)
     lineFileAllInts(lf, row, 6, &bed->thickStart, FALSE, 4, "integer", FALSE);
 else
     bed->thickStart = bed->chromStart;
-if (wordCount > 7)
+if (bedFieldCount > 7)
     {
     lineFileAllInts(lf, row, 7, &bed->thickEnd, FALSE, 4, "integer", FALSE);
     if (bed->thickEnd < bed->thickStart)
@@ -1410,7 +1476,7 @@ if (wordCount > 7)
 else
      bed->thickEnd = bed->chromEnd;
 
-if (wordCount > 8)
+if (bedFieldCount > 8)
     {
     if (strchr(row[8],','))
 	{
@@ -1431,14 +1497,19 @@ if (wordCount > 8)
 	}
     }
 
-if (wordCount > 9)
+int tempArraySize = 1;	// How big arrays are below
+if (bedFieldCount > 9)
     {
     lineFileAllInts(lf, row, 9, &bed->blockCount, FALSE, 4, "integer", FALSE);
     if (!(bed->blockCount >= 1))
 	lineFileAbort(lf, "Expecting blockCount (%d) to be 1 or more.", bed->blockCount);
-    
+    tempArraySize = bed->blockCount;
     }
-if (wordCount > 10)
+int tempBlockSizes[tempArraySize];
+int tempChromStarts[tempArraySize];
+int tempExpIds[tempArraySize];
+float tempExpScores[tempArraySize];
+if (bedFieldCount > 10)
     {
     if (isCt)
 	{
@@ -1448,19 +1519,21 @@ if (wordCount > 10)
 	}
     else
 	{
-        count = lineFileAllIntsArray(lf, row, 10, tempBlockSizes, sizeof tempBlockSizes, TRUE, 4, "integer", TRUE);
+        count = lineFileAllIntsArray(lf, row, 10, tempBlockSizes, tempArraySize, TRUE, 4, "integer", TRUE);
 	blockSizes = tempBlockSizes;
 	}
     if (count != bed->blockCount)
 	lineFileAbort(lf, "Expecting %d elements in blockSizes list, found at least %d", bed->blockCount, count);
+#ifdef NOTNOW
     int i;
     for (i=0; i < bed->blockCount;  i++)
 	{
         if (!(blockSizes[i] > 0))
 		lineFileAbort(lf, "BED blockSizes must be greater than 0, blockSize[%d] = %d", i, blockSizes[i]);
 	}
+#endif
     }
-if (wordCount > 11)
+if (bedFieldCount > 11)
     {
     int i;
     if (isCt)
@@ -1471,7 +1544,7 @@ if (wordCount > 11)
 	}
     else
 	{
-        count = lineFileAllIntsArray(lf, row, 11, tempChromStarts, sizeof tempChromStarts, TRUE, 4, "integer", TRUE);
+        count = lineFileAllIntsArray(lf, row, 11, tempChromStarts, tempArraySize, TRUE, 4, "integer", TRUE);
 	chromStarts = tempChromStarts;
 	}
     if (count != bed->blockCount)
@@ -1514,7 +1587,7 @@ printf("%d:%d %s %s s:%d c:%u cs:%u ce:%u csI:%d bsI:%d ls:%d le:%d<BR>\n", line
 	}
     }
 
-if (wordCount > 12)
+if (bedFieldCount > 12)
     // get the microarray/colored-exon fields
     {
     lineFileAllInts(lf, row, 12, &bed->expCount, TRUE, 4, "integer", TRUE);
@@ -1524,26 +1597,22 @@ if (wordCount > 12)
 	{
 	AllocArray(bed->expIds,bed->expCount+1); // having +1 allows us to detect incorrect size
         count = lineFileAllIntsArray(lf, row, 13, bed->expIds, bed->expCount+1, TRUE, 4, "integer", TRUE);
-	expIds = bed->expIds;
 	}
     else
 	{
-        count = lineFileAllIntsArray(lf, row, 13, tempExpIds, sizeof tempExpIds, TRUE, 4, "integer", TRUE);
-	expIds = tempExpIds;
+        count = lineFileAllIntsArray(lf, row, 13, tempExpIds, tempArraySize, TRUE, 4, "integer", TRUE);
 	}
     if (count != bed->expCount)
 	lineFileAbort(lf, "expecting %d elements in expIds list (bed field 14)", bed->expCount);
-    if (wordCount == 15)
+    if (bedFieldCount == 15)
 	{
 	if (isCt)
 	    {
 	    sqlFloatDynamicArray(row[14], &bed->expScores, &count);
-	    expScores = bed->expScores;
 	    }
 	else
 	    {
-	    count = sqlFloatArray(row[14], tempExpScores, sizeof tempExpScores);
-	    expScores = tempExpScores;
+	    count = sqlFloatArray(row[14], tempExpScores, tempArraySize);
 	    }
 	if (count != bed->expCount)
 	    lineFileAbort(lf, "expecting %d elements in expScores list (bed field 15)", bed->expCount);
@@ -1580,8 +1649,8 @@ if (as)
 	asCol = asCol->next;
 	}    
     /* Validate bed-plus fields */
-    asCol = slElementFromIx(as->columnList, wordCount);
-    for (i=wordCount; i<fieldCount; ++i)
+    asCol = slElementFromIx(as->columnList, bedFieldCount);
+    for (i=bedFieldCount; i<fieldCount; ++i)
 	{
 	enum asTypes type = asCol->lowType->type;
 	if (! (asCol->isList || asCol->isArray))
@@ -1598,9 +1667,23 @@ if (as)
 	    }
 	else if (asCol->isList)
 	    {
-	    if (asTypesIsInt(type))
+            if (asTypesIsFloating(type))
+                {
+                // assure count = #items in list; lightweight validation (better than none)
+                int ix = asColumnFindIx(as->columnList, asCol->linkedSizeName);
+                int count = sqlUnsigned(row[ix]);
+		if (count == 0)
+                    lineFileAbort(lf, 
+                        "expecting positive number in count field for %s list, found %d", 
+                                        asCol->name, asCol->fixedSize);
+                int itemCount = countSeparatedItems(row[i], ',');
+                if (count != itemCount)
+                    lineFileAbort(lf, "expecting %d elements in %s list, found %d", 
+                                        count, asCol->name, itemCount);
+                }
+	    else if (asTypesIsInt(type))
 		{
-		count = lineFileAllIntsArray(lf, row, i, NULL, 1024,
+		count = lineFileAllIntsArray(lf, row, i, NULL, countSeparatedItems(row[i], ','),
 		    !asTypesIsUnsigned(type), asTypesIntSize(type), asTypesIntSizeDescription(type), FALSE);
 		if (asCol->fixedSize > 0)
 		    {
@@ -1628,5 +1711,95 @@ if (as)
     hashFree(&linkHash);
     }
 
+}
+
+struct bed3 *bed3LoadAll(char *fileName)
+/* Load three columns from file as bed3. */
+{
+struct lineFile *lf = lineFileOpen(fileName, TRUE);
+char *row[3];
+struct bed3 *list = NULL, *el;
+while (lineFileRow(lf, row))
+    {
+    AllocVar(el);
+    el->chrom = cloneString(row[0]);
+    el->chromStart = sqlUnsigned(row[1]);
+    el->chromEnd = sqlUnsigned(row[2]);
+    slAddHead(&list, el);
+    }
+lineFileClose(&lf);
+slReverse(&list);
+return list;
+}
+
+void bed3Free(struct bed3 **pBed)
+/* Free up bed3 */
+{
+struct bed3 *bed = *pBed;
+if (bed != NULL)
+    {
+    freeMem(bed->chrom);
+    freez(pBed);
+    }
+}
+
+void bed3FreeList(struct bed3 **pList)
+/* Free a list of dynamically allocated bed3's */
+{
+struct bed3 *el, *next;
+
+for (el = *pList; el != NULL; el = next)
+    {
+    next = el->next;
+    bed3Free(&el);
+    }
+*pList = NULL;
+}
+
+long long bed3TotalSize(struct bed3 *bedList)
+/* Return sum of chromEnd-chromStart. */
+{
+long long sum = 0;
+struct bed3 *bed;
+for (bed = bedList; bed != NULL; bed = bed->next)
+    sum += bed->chromEnd - bed->chromStart;
+return sum;
+}
+
+struct bed4 *bed4New(char *chrom, int start, int end, char *name)
+/* Make new bed4. */
+{
+struct bed4 *bed;
+AllocVar(bed);
+bed->chrom = cloneString(chrom);
+bed->chromStart = start;
+bed->chromEnd = end;
+bed->name = cloneString(name);
+return bed;
+}
+
+void bed4Free(struct bed4 **pBed)
+/* Free up bed4 */
+{
+struct bed4 *bed = *pBed;
+if (bed != NULL)
+    {
+    freeMem(bed->chrom);
+    freeMem(bed->name);
+    freez(pBed);
+    }
+}
+
+void bed4FreeList(struct bed4 **pList)
+/* Free a list of dynamically allocated bed4's */
+{
+struct bed4 *el, *next;
+
+for (el = *pList; el != NULL; el = next)
+    {
+    next = el->next;
+    bed4Free(&el);
+    }
+*pList = NULL;
 }
 

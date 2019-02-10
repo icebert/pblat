@@ -1,10 +1,12 @@
 /* bwgCreate - create big wig files.  Implements write side of bwgInternal.h module. 
  * See the comment in bwgInternal.h for a description of the file format. */
 
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "linefile.h"
 #include "hash.h"
-#include "localmem.h"
 #include "errAbort.h"
 #include "sqlNum.h"
 #include "sig.h"
@@ -359,6 +361,27 @@ for (item = itemList; item != NULL; )
 lmCleanup(&lmLocal);
 }
 
+static bits32 getChromSize(struct hash *chromSizeHash, char *chrom, boolean clipDontDie)
+/* return size of chrom or BIGNUM if hash is NULL. errAbort if not found, unless clipDontDie */
+{
+int chromSize = 0;
+if (chromSizeHash) {
+    chromSize = hashIntValDefault(chromSizeHash, chrom, -1);
+    if (chromSize==-1) {
+        warn("chromosome %s is not in chrom sizes file", chrom);
+
+        if (clipDontDie)
+            chromSize = BIGNUM;
+        else
+            noWarnAbort();
+    }
+}
+else
+    chromSize = BIGNUM;
+
+return chromSize;
+}
+
 static unsigned parseUnsignedVal(struct lineFile *lf, char *var, char *val)
 /* Return val as an integer, printing error message if it's not. */
 {
@@ -418,7 +441,9 @@ while ((varEqVal = nextWord(&initialLine)) != NULL)
  * rest of section. */
 if (chrom == NULL)
     errAbort("Missing chrom= setting line %d of %s\n", lf->lineIx, lf->fileName);
-bits32 chromSize = (chromSizeHash ? hashIntVal(chromSizeHash, chrom) : BIGNUM);
+
+bits32 chromSize = getChromSize(chromSizeHash, chrom, clipDontDie);
+
 if (start > chromSize)
     {
     warn("line %d of %s: chromosome %s has %u bases, but item starts at %u",
@@ -500,7 +525,7 @@ while (lineFileNextReal(lf, &line))
         {
 	lmAllocVar(chromHash->lm, chrom);
 	hashAddSaveName(chromHash, chromName, chrom, &chrom->name);
-	chrom->size = (chromSizeHash ? hashIntVal(chromSizeHash, chromName) : BIGNUM);
+	chrom->size = getChromSize(chromSizeHash, chromName, clipDontDie);
 	slAddHead(&chromList, chrom);
 	}
 
@@ -583,7 +608,7 @@ chromList = NULL;
 }
 
 void bwgMakeChromInfo(struct bwgSection *sectionList, struct hash *chromSizeHash,
-	int *retChromCount, struct bbiChromInfo **retChromArray,
+	boolean clipDontDie, int *retChromCount, struct bbiChromInfo **retChromArray,
 	int *retMaxChromNameSize)
 /* Fill in chromId field in sectionList.  Return array of chromosome name/ids. 
  * The chromSizeHash is keyed by name, and has int values. */
@@ -617,11 +642,83 @@ for (i = 0, uniq = uniqList; i < chromCount; ++i, uniq = uniq->next)
     {
     chromArray[i].name = uniq->val;
     chromArray[i].id = i;
-    chromArray[i].size = hashIntVal(chromSizeHash, uniq->val);
+    chromArray[i].size = getChromSize(chromSizeHash, uniq->val, clipDontDie);
     }
 
 /* Clean up, set return values and go home. */
 slFreeList(&uniqList);
+*retChromCount = chromCount;
+*retChromArray = chromArray;
+*retMaxChromNameSize = maxChromNameSize;
+}
+
+static int bwgStrcmp (const void * A, const void * B) {
+	char * stringA = *((char **) A);
+	char * stringB = *((char **) B);
+	return strcmp(stringA, stringB);
+}
+
+void bwgMakeAllChromInfo(struct bwgSection *sectionList, struct hash *chromSizeHash,
+	boolean clipDontDie, int *retChromCount, struct bbiChromInfo **retChromArray,
+	int *retMaxChromNameSize)
+/* Fill in chromId field in sectionList.  Return array of chromosome name/ids. 
+ * The chromSizeHash is keyed by name, and has int values. */
+{
+/* Build up list of unique chromosome names. */
+int maxChromNameSize = 0;
+
+/* Get list of values */
+int chromCount = chromSizeHash->elCount;
+char ** chromName, ** chromNames;
+AllocArray(chromNames, chromCount);
+chromName = chromNames;
+struct hashEl* el;
+struct hashCookie cookie = hashFirst(chromSizeHash);
+for (el = hashNext(&cookie); el; el = hashNext(&cookie)) {
+	*chromName = el->name;
+	if (strlen(el->name) > maxChromNameSize)
+		maxChromNameSize = strlen(el->name);
+	chromName++;
+}
+qsort(chromNames, chromCount, sizeof(char *), bwgStrcmp);
+
+/* Allocate and fill in results array. */
+struct bbiChromInfo *chromArray;
+AllocArray(chromArray, chromCount);
+int i;
+for (i = 0; i < chromCount; ++i)
+    {
+    chromArray[i].name = chromNames[i];
+    chromArray[i].id = i;
+    chromArray[i].size = getChromSize(chromSizeHash, chromNames[i], clipDontDie);
+    }
+
+// Assign IDs to sections:
+struct bwgSection *section;
+char *name = "";
+bits32 chromId = 0;
+for (section = sectionList; section != NULL; section = section->next)
+    {
+    if (!sameString(section->chrom, name))
+        {
+        for (i = 0; i < chromCount; ++i)
+            {
+	    if (sameString(section->chrom, chromArray[i].name)) 
+	        {
+		    section->chromId = i;
+	    	    break;
+	        }
+	    }
+	if (i == chromCount)
+		errAbort("Could not find %s in list of chromosomes\n", section->chrom);
+	chromId = section->chromId;
+	name = section->chrom;
+	}
+    else 
+	section->chromId = chromId;
+    }
+
+/* Clean up, set return values and go home. */
 *retChromCount = chromCount;
 *retChromArray = chromArray;
 *retMaxChromNameSize = maxChromNameSize;
@@ -797,8 +894,92 @@ slReverse(&outList);
 return outList;
 }
 
-static void bwgCreate(struct bwgSection *sectionList, struct hash *chromSizeHash, 
-	int blockSize, int itemsPerSlot, boolean doCompress, char *fileName)
+static void bwgComputeDynamicSummaries(struct bwgSection *sectionList, struct bbiSummary ** reduceSummaries, bits16 * summaryCount, struct bbiChromInfo *chromInfoArray, int chromCount, bits32 * reductionAmounts, boolean doCompress) {
+/* Figure out initial summary level - starting with a summary 10 times the amount
+ * of the smallest item.  See if summarized data is smaller than half input data, if
+ * not bump up reduction by a factor of 2 until it is, or until further summarying
+ * yeilds no size reduction. */
+int i;
+int  minRes = bwgAverageResolution(sectionList);
+int initialReduction = minRes*10;
+bits64 fullSize = bwgTotalSectionSize(sectionList);
+bits64 lastSummarySize = 0, summarySize;
+bits64 maxReducedSize = fullSize/2;
+struct bbiSummary *summaryList = NULL;
+for (;;)
+    {
+    summaryList = bwgReduceSectionList(sectionList, chromInfoArray, initialReduction);
+    bits64 summarySize = bbiTotalSummarySize(summaryList);
+    if (doCompress)
+	{
+        summarySize *= 2;	// Compensate for summary not compressing as well as primary data
+	}
+    if (summarySize >= maxReducedSize && summarySize != lastSummarySize)
+        {
+	/* Need to do more reduction.  First scale reduction by amount that it missed
+	 * being small enough last time, with an extra 10% for good measure.  Then
+	 * just to keep from spinning through loop two many times, make sure this is
+	 * at least 2x the previous reduction. */
+	int nextReduction = 1.1 * initialReduction * summarySize / maxReducedSize;
+	if (nextReduction < initialReduction*2)
+	    nextReduction = initialReduction*2;
+	initialReduction = nextReduction;
+	bbiSummaryFreeList(&summaryList);
+	lastSummarySize = summarySize;
+	}
+    else
+        break;
+    }
+*summaryCount = 1;
+reduceSummaries[0] = summaryList;
+reductionAmounts[0] = initialReduction;
+
+/* Now calculate up to 10 levels of further summary. */
+bits64 reduction = initialReduction;
+for (i=0; i<9; i++)
+    {
+    reduction *= 4;
+    if (reduction > 1000000000)
+        break;
+    summaryList = bbiReduceSummaryList(reduceSummaries[*summaryCount-1], chromInfoArray, 
+    	reduction);
+    summarySize = bbiTotalSummarySize(summaryList);
+    if (summarySize != lastSummarySize)
+        {
+ 	reduceSummaries[*summaryCount] = summaryList;
+	reductionAmounts[*summaryCount] = reduction;
+	++(*summaryCount);
+	}
+    int summaryItemCount = slCount(summaryList);
+    if (summaryItemCount <= chromCount)
+        break;
+    }
+
+}
+
+static void bwgComputeFixedSummaries(struct bwgSection * sectionList, struct bbiSummary ** reduceSummaries, bits16 * summaryCount, struct bbiChromInfo *chromInfoArray, bits32 * reductionAmounts) {
+// Hack: pre-defining summary levels, set off Ensembl default zoom levels
+// The last two values of this array were extrapolated following Jim's formula
+int i;
+#define REDUCTION_COUNT 10
+bits32 presetReductions[REDUCTION_COUNT] = {30, 65, 130, 260, 450, 648, 950, 1296, 4800, 19200}; 
+
+bits64 reduction = reductionAmounts[0] = presetReductions[0];
+reduceSummaries[0] = bwgReduceSectionList(sectionList, chromInfoArray, presetReductions[0]);
+
+for (i=1; i<REDUCTION_COUNT; i++)
+    {
+    reduction = reductionAmounts[i] = presetReductions[i];
+    reduceSummaries[i] = bbiReduceSummaryList(reduceSummaries[i-1], chromInfoArray, 
+    	reduction);
+    }
+
+*summaryCount = REDUCTION_COUNT;
+}
+
+void bwgCreate(struct bwgSection *sectionList, struct hash *chromSizeHash, 
+	int blockSize, int itemsPerSlot, boolean doCompress, boolean keepAllChromosomes,
+        boolean fixedSummaries, boolean clipDontDie, char *fileName)
 /* Create a bigWig file out of a sorted sectionList. */
 {
 bits64 sectionCount = slCount(sectionList);
@@ -825,66 +1006,15 @@ int i;
 /* Figure out chromosome ID's. */
 struct bbiChromInfo *chromInfoArray;
 int chromCount, maxChromNameSize;
-bwgMakeChromInfo(sectionList, chromSizeHash, &chromCount, &chromInfoArray, &maxChromNameSize);
+if (keepAllChromosomes)
+    bwgMakeAllChromInfo(sectionList, chromSizeHash, clipDontDie, &chromCount, &chromInfoArray, &maxChromNameSize);
+else
+    bwgMakeChromInfo(sectionList, chromSizeHash, clipDontDie, &chromCount, &chromInfoArray, &maxChromNameSize);
 
-/* Figure out initial summary level - starting with a summary 10 times the amount
- * of the smallest item.  See if summarized data is smaller than half input data, if
- * not bump up reduction by a factor of 2 until it is, or until further summarying
- * yeilds no size reduction. */
-int  minRes = bwgAverageResolution(sectionList);
-int initialReduction = minRes*10;
-bits64 fullSize = bwgTotalSectionSize(sectionList);
-bits64 maxReducedSize = fullSize/2;
-struct bbiSummary *firstSummaryList = NULL, *summaryList = NULL;
-bits64 lastSummarySize = 0, summarySize;
-for (;;)
-    {
-    summaryList = bwgReduceSectionList(sectionList, chromInfoArray, initialReduction);
-    bits64 summarySize = bbiTotalSummarySize(summaryList);
-    if (doCompress)
-	{
-        summarySize *= 2;	// Compensate for summary not compressing as well as primary data
-	}
-    if (summarySize >= maxReducedSize && summarySize != lastSummarySize)
-        {
-	/* Need to do more reduction.  First scale reduction by amount that it missed
-	 * being small enough last time, with an extra 10% for good measure.  Then
-	 * just to keep from spinning through loop two many times, make sure this is
-	 * at least 2x the previous reduction. */
-	int nextReduction = 1.1 * initialReduction * summarySize / maxReducedSize;
-	if (nextReduction < initialReduction*2)
-	    nextReduction = initialReduction*2;
-	initialReduction = nextReduction;
-	bbiSummaryFreeList(&summaryList);
-	lastSummarySize = summarySize;
-	}
-    else
-        break;
-    }
-summaryCount = 1;
-reduceSummaries[0] = firstSummaryList = summaryList;
-reductionAmounts[0] = initialReduction;
-
-/* Now calculate up to 10 levels of further summary. */
-bits64 reduction = initialReduction;
-for (i=0; i<ArraySize(reduceSummaries)-1; i++)
-    {
-    reduction *= 4;
-    if (reduction > 1000000000)
-        break;
-    summaryList = bbiReduceSummaryList(reduceSummaries[summaryCount-1], chromInfoArray, 
-    	reduction);
-    summarySize = bbiTotalSummarySize(summaryList);
-    if (summarySize != lastSummarySize)
-        {
- 	reduceSummaries[summaryCount] = summaryList;
-	reductionAmounts[summaryCount] = reduction;
-	++summaryCount;
-	}
-    int summaryItemCount = slCount(summaryList);
-    if (summaryItemCount <= chromCount)
-        break;
-    }
+if (fixedSummaries) 
+    bwgComputeFixedSummaries(sectionList, reduceSummaries, &summaryCount, chromInfoArray, reductionAmounts);
+else 
+    bwgComputeDynamicSummaries(sectionList, reduceSummaries, &summaryCount, chromInfoArray, chromCount, reductionAmounts, doCompress);
 
 /* Write fixed header. */
 writeOne(f, sig);
@@ -903,8 +1033,8 @@ totalSummaryOffsetPos = ftell(f);
 writeOne(f, totalSummaryOffset);
 uncompressBufSizePos = ftell(f);
 writeOne(f, uncompressBufSize);
-for (i=0; i<2; ++i)
-    writeOne(f, reserved32);
+writeOne(f, reserved64);  /* nameIndexOffset */
+assert(ftell(f) == 64);
 
 /* Write summary headers */
 for (i=0; i<summaryCount; ++i)
@@ -963,7 +1093,7 @@ for (i=0; i<summaryCount; ++i)
     }
 
 /* Calculate summary */
-struct bbiSummary *sum = firstSummaryList;
+struct bbiSummary *sum = reduceSummaries[0];
 if (sum != NULL)
     {
     totalSum.validCount = sum->validCount;
@@ -1086,13 +1216,15 @@ for (section = sectionList; section != NULL; section = nextSection)
 return sectionList;
 }
 
-void bigWigFileCreate(
+void bigWigFileCreateEx(
 	char *inName, 		/* Input file in ascii wiggle format. */
 	char *chromSizes, 	/* Two column tab-separated file: <chromosome> <size>. */
 	int blockSize,		/* Number of items to bundle in r-tree.  1024 is good. */
 	int itemsPerSlot,	/* Number of items in lowest level of tree.  512 is good. */
 	boolean clipDontDie,	/* If TRUE then clip items off end of chrom rather than dying. */
 	boolean compress,	/* If TRUE then compress data. */
+	boolean keepAllChromosomes,	/* If TRUE then store all chromosomes in chromosomal b-tree. */
+	boolean fixedSummaries,	/* If TRUE then impose fixed summary levels. */
 	char *outName)
 /* Convert ascii format wig file (in fixedStep, variableStep or bedGraph format) 
  * to binary big wig format. */
@@ -1108,7 +1240,22 @@ struct lm *lm = lmInit(0);
 struct bwgSection *sectionList = bwgParseWig(inName, clipDontDie, chromSizeHash, itemsPerSlot, lm);
 if (sectionList == NULL)
     errAbort("%s is empty of data", inName);
-bwgCreate(sectionList, chromSizeHash, blockSize, itemsPerSlot, compress, outName);
+bwgCreate(sectionList, chromSizeHash, blockSize, itemsPerSlot, compress, keepAllChromosomes, fixedSummaries, clipDontDie, outName);
 lmCleanup(&lm);
+}
+
+void bigWigFileCreate(
+	char *inName, 		/* Input file in ascii wiggle format. */
+	char *chromSizes, 	/* Two column tab-separated file: <chromosome> <size>. */
+	int blockSize,		/* Number of items to bundle in r-tree.  1024 is good. */
+	int itemsPerSlot,	/* Number of items in lowest level of tree.  512 is good. */
+	boolean clipDontDie,	/* If TRUE then clip items off end of chrom rather than dying. */
+	boolean compress,	/* If TRUE then compress data. */
+	char *outName)
+/* Convert ascii format wig file (in fixedStep, variableStep or bedGraph format) 
+ * to binary big wig format. */
+{
+bigWigFileCreateEx( inName, chromSizes, blockSize, itemsPerSlot, clipDontDie,
+	compress, FALSE, FALSE, outName);
 }
 

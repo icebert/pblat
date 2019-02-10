@@ -1,5 +1,8 @@
 /* iupac - routines to help cope with IUPAC ambiguity codes in DNA sequence. */
 
+/* Copyright (C) 2012 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "dnautil.h"
 #include "iupac.h"
@@ -103,24 +106,11 @@ boolean anyIupac(char *s)
 /* Return TRUE if there are any IUPAC ambiguity codes in s */
 {
 dnaUtilOpen();
-int c;
+char c;
 while ((c = *s++) != 0)
     {
-    switch (c)
-	{
-	case 'r':
-	case 'y':
-	case 's':
-	case 'w':
-	case 'k':
-	case 'm':
-	case 'b':
-	case 'd':
-	case 'h':
-	case 'v':
-	case 'n':
-	    return TRUE;
-	}
+    if (isIupacAmbiguous(c))
+        return TRUE;
     }
 return FALSE;
 }

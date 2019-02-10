@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <sys/utsname.h>
 #include <sys/time.h>
+#include <sys/statvfs.h>
 #include <pwd.h>
 #include <termios.h>
 #include "portable.h"
@@ -30,6 +31,16 @@ if (stat(pathname,&mystat)==-1)
 return mystat.st_size;
 }
 
+long long freeSpaceOnFileSystem(char *path)
+/* Given a path to a file or directory on a file system,  return free space
+ * in bytes. */
+{
+struct statvfs fi;
+int err = statvfs(path,&fi);
+if (err < 0)
+    errnoAbort("freeSpaceOnFileSystem could not statvfs");
+return (long long)fi.f_bsize * fi.f_bavail;
+}
 
 long clock1000()
 /* A millisecond clock. */
@@ -226,7 +237,7 @@ while ((de = readdir(d)) != NULL)
 		if (ignoreStatFailures)
 		    statErrno = errno;
 		else
-    		    errAbort("stat failed in listDirX");
+    		    errnoAbort("stat failed in listDirX: %s", pathName);
 		}
 	    if (S_ISDIR(st.st_mode))
 		isDir = TRUE;
@@ -257,7 +268,7 @@ time_t fileModTime(char *pathName)
 {
 struct stat st;
 if (stat(pathName, &st) < 0)
-    errAbort("stat failed in fileModTime: %s", pathName);
+    errnoAbort("stat failed in fileModTime: %s", pathName);
 return st.st_mtime;
 }
 
@@ -332,21 +343,66 @@ safef(name, sizeof(name), "%s_%s_%x_%x",
 return name;
 }
 
+char *getTempDir(void)
+/* get temporary directory to use for programs.  This first checks TMPDIR environment
+ * variable, then /data/tmp, /scratch/tmp, /var/tmp, /tmp.  Return is static and
+ * only set of first call */
+{
+static char *checkTmpDirs[] = {"/data/tmp", "/scratch/tmp", "/var/tmp", "/tmp", NULL};
+
+static char* tmpDir = NULL;
+if (tmpDir == NULL)
+    {
+    tmpDir = getenv("TMPDIR");
+    if (tmpDir != NULL)
+        tmpDir = cloneString(tmpDir);  // make sure it's stable
+    else
+        {
+        int i;
+        for (i = 0; (checkTmpDirs[i] != NULL) && (tmpDir == NULL); i++)
+            {
+            if (fileSize(checkTmpDirs[i]) >= 0)
+                tmpDir = checkTmpDirs[i];
+            }
+        }
+    }
+if (tmpDir == NULL)
+    errAbort("BUG: can't find a tmp directory");
+return tmpDir;
+}
+
 char *rTempName(char *dir, char *base, char *suffix)
 /* Make a temp name that's almost certainly unique. */
 {
 char *x;
 static char fileName[PATH_LEN];
 int i;
+char *lastSlash = (lastChar(dir) == '/' ? "" : "/");
 for (i=0;;++i)
     {
     x = semiUniqName(base);
-    safef(fileName, sizeof(fileName), "%s/%s%d%s",
-    	dir, x, i, suffix);
+    safef(fileName, sizeof(fileName), "%s%s%s%d%s",
+    	dir, lastSlash, x, i, suffix);
     if (!fileExists(fileName))
         break;
     }
 return fileName;
+}
+
+void mustRename(char *oldName, char *newName)
+/* Rename file or die trying. */
+{
+int err = rename(oldName, newName);
+if (err < 0)
+    errnoAbort("Couldn't rename %s to %s", oldName, newName);
+}
+
+void mustRemove(char *path)
+/* Remove file or die trying */
+{
+int err = remove(path);
+if (err < 0)
+    errnoAbort("Couldn't remove %s", path);
 }
 
 static void eatSlashSlashInPath(char *path)
@@ -544,6 +600,25 @@ if (fstat(fd, &buf) < 0)
 return S_ISFIFO(buf.st_mode);
 }
 
+void childExecFailedExit(char *msg)
+/* Child exec failed, so quit without atexit cleanup */
+{
+fprintf(stderr, "child exec failed: %s\n", msg);
+fflush(stderr);
+_exit(1);  // Let the parent know that the child failed by returning 1.
+
+/* Explanation:
+_exit() is not the normal exit().  
+_exit() avoids the usual atexit() cleanup.
+The MySQL library that we link to uses atexit() cleanup to close any open MySql connections.
+However, because the child's mysql connections are shared by the parent,
+this causes the parent MySQL connections to become invalid,
+and causes the puzzling "MySQL has gone away" error in the parent
+when it tries to use its now invalid MySQL connections.
+*/
+
+}
+
 static void execPStack(pid_t ppid)
 /* exec pstack on the specified pid */
 {
@@ -558,7 +633,9 @@ if (dup2(2, 1) < 0)
     errAbort("dup2 failed");
 
 execvp(cmd[0], cmd);
-errAbort("exec failed: %s", cmd[0]);
+
+childExecFailedExit(cmd[0]); // cannot use the normal errAbort.
+
 }
 
 void vaDumpStack(char *format, va_list args)
@@ -620,9 +697,7 @@ boolean maybeTouchFile(char *fileName)
 {
 if (fileExists(fileName))
     {
-    struct utimbuf ut;
-    ut.actime = ut.modtime = clock1();
-    int ret = utime(fileName, &ut);
+    int ret = utime(fileName, NULL);
     if (ret != 0)
 	{
 	warn("utime(%s) failed (ownership?)", fileName);
@@ -639,3 +714,77 @@ else
     }
 return TRUE;
 }
+
+void touchFileFromFile(const char *oldFile, const char *newFile)
+/* Set access and mod time of newFile from oldFile. */
+{
+    struct stat buf;
+    if (stat(oldFile, &buf) != 0)
+        errnoAbort("stat failed on %s", oldFile);
+    struct utimbuf puttime;
+    puttime.modtime = buf.st_mtime;
+    puttime.actime = buf.st_atime;
+    if (utime(newFile, &puttime) != 0)
+	errnoAbort("utime failed on %s", newFile);
+}
+
+boolean isDirectory(char *pathName)
+/* Return TRUE if pathName is a directory. */
+{
+struct stat st;
+
+if (stat(pathName, &st) < 0)
+    return FALSE;
+if (S_ISDIR(st.st_mode))
+    return TRUE;
+return FALSE;
+}
+
+boolean isRegularFile(char *fileName)
+/* Return TRUE if fileName is a regular file. */
+{
+struct stat st;
+
+if (stat(fileName, &st) < 0)
+    return FALSE;
+if (S_ISREG(st.st_mode))
+    return TRUE;
+return FALSE;
+}
+
+char *mustReadSymlinkExt(char *path, struct stat *sb)
+/* Read symlink or abort. FreeMem the returned value. */
+{
+ssize_t nbytes, bufsiz;
+// determine whether the buffer returned was truncated.
+bufsiz = sb->st_size + 1;
+char *symPath = needMem(bufsiz);
+nbytes = readlink(path, symPath, bufsiz);
+if (nbytes == -1) 
+    errnoAbort("readlink failure on symlink %s", path);
+if (nbytes == bufsiz)
+    errAbort("readlink returned buffer truncated\n");
+return symPath;
+}
+
+char *mustReadSymlink(char *path)
+/* Read symlink or abort. Checks that path is a symlink. 
+FreeMem the returned value. */
+{
+struct stat sb;
+if (lstat(path, &sb) == -1)
+    errnoAbort("lstat failure on %s", path);
+if ((sb.st_mode & S_IFMT) != S_IFLNK)
+    errnoAbort("path %s not a symlink.", path);
+return mustReadSymlinkExt(path, &sb);
+}
+
+
+void makeSymLink(char *oldName, char *newName)
+/* Return a symbolic link from newName to oldName or die trying */
+{
+int err = symlink(oldName, newName);
+if (err < 0)
+     errnoAbort("Couldn't make symbolic link from %s to %s\n", oldName, newName);
+}
+

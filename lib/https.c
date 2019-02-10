@@ -1,6 +1,7 @@
 /* Connect via https. */
 
-#ifdef USE_SSL
+/* Copyright (C) 2012 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
 
 #include "openssl/ssl.h"
 #include "openssl/err.h"
@@ -8,9 +9,12 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "common.h"
+#include "internet.h"
 #include "errAbort.h"
+#include "net.h"
 
 
 static pthread_mutex_t *mutexes = NULL;
@@ -46,6 +50,7 @@ struct netConnectHttpsParams
 pthread_t thread;
 char *hostName;
 int port;
+boolean noProxy;
 int sv[2]; /* the pair of socket descriptors */
 };
 
@@ -88,10 +93,14 @@ struct netConnectHttpsParams *params = threadParam;
 pthread_detach(params->thread);  // this thread will never join back with it's progenitor
 
 int fd=0;
+char *proxyUrl = getenv("https_proxy");
+if (params->noProxy)
+    proxyUrl = NULL;
+char *connectHost;
+int connectPort;
 
-char hostnameProto[256];
-
-BIO *sbio;
+BIO *fbio=NULL;  // file descriptor bio
+BIO *sbio=NULL;  // ssl bio
 SSL_CTX *ctx;
 SSL *ssl;
 
@@ -122,8 +131,79 @@ if (certFile || certPath)
 */
 
 
-sbio = BIO_new_ssl_connect(ctx);
 
+// Don't want any retries since we are non-blocking bio now
+// This is available on newer versions of openssl
+//SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
+
+// Support for Http Proxy
+struct netParsedUrl pxy;
+if (proxyUrl)
+    {
+    netParseUrl(proxyUrl, &pxy);
+    if (!sameString(pxy.protocol, "http"))
+	{
+	char s[256];	
+	safef(s, sizeof s, "Unknown proxy protocol %s in %s. Should be http.", pxy.protocol, proxyUrl);
+	xerr(s);
+	goto cleanup;
+	}
+    connectHost = pxy.host;
+    connectPort = atoi(pxy.port);
+    }
+else
+    {
+    connectHost = params->hostName;
+    connectPort = params->port;
+    }
+fd = netConnect(connectHost,connectPort);
+if (fd == -1)
+    {
+    xerr("netConnect() failed");
+    goto cleanup;
+    }
+
+if (proxyUrl)
+    {
+    char *logProxy = getenv("log_proxy");
+    if (sameOk(logProxy,"on"))
+	verbose(1, "CONNECT %s:%d HTTP/1.0 via %s:%d\n", params->hostName, params->port, connectHost,connectPort);
+    struct dyString *dy = newDyString(512);
+    dyStringPrintf(dy, "CONNECT %s:%d HTTP/1.0\r\n", params->hostName, params->port);
+    setAuthorization(pxy, "Proxy-Authorization", dy);
+    dyStringAppend(dy, "\r\n");
+    mustWriteFd(fd, dy->string, dy->stringSize);
+    dyStringFree(&dy);
+    // verify response
+    char *newUrl = NULL;
+    boolean success = netSkipHttpHeaderLinesWithRedirect(fd, proxyUrl, &newUrl);
+    if (!success) 
+	{
+	xerr("proxy server response failed");
+	goto cleanup;
+	}
+    if (newUrl) /* no redirects */
+	{
+	xerr("proxy server response should not be a redirect");
+	goto cleanup;
+	}
+    }
+
+
+fbio=BIO_new_socket(fd,BIO_NOCLOSE);  
+// BIO_NOCLOSE because we handle closing fd ourselves.
+if (fbio == NULL)
+    {
+    xerr("BIO_new_socket() failed");
+    goto cleanup;
+    }
+sbio = BIO_new_ssl(ctx, 1);
+if (sbio == NULL) 
+    {
+    xerr("BIO_new_ssl() failed");
+    goto cleanup;
+    }
+sbio = BIO_push(sbio, fbio);
 BIO_get_ssl(sbio, &ssl);
 if(!ssl) 
     {
@@ -131,24 +211,29 @@ if(!ssl)
     goto cleanup;
     }
 
-/* Don't want any retries since we are non-blocking bio now */
-//SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
 
-
-safef(hostnameProto,sizeof(hostnameProto),"%s:%d",params->hostName,params->port);
-BIO_set_conn_hostname(sbio, hostnameProto);
+/* 
+Server Name Indication (SNI)
+Required to complete tls ssl negotiation for systems which house multiple domains. (SNI)
+This is common when serving HTTPS requests with a wildcard certificate (*.domain.tld).
+This line will allow the ssl connection to send the hostname at tls negotiation time.
+It tells the remote server which hostname the client is connecting to.
+The hostname must not be an IP address.
+*/ 
+if (!internetIsDottedQuad(params->hostName))
+    SSL_set_tlsext_host_name(ssl,params->hostName);
 
 BIO_set_nbio(sbio, 1);     /* non-blocking mode */
 
 while (1) 
     {
-    if (BIO_do_connect(sbio) == 1) 
+    if (BIO_do_handshake(sbio) == 1) 
 	{
 	break;  /* Connected */
 	}
     if (! BIO_should_retry(sbio)) 
 	{
-	xerr("BIO_do_connect() failed");
+	xerr("BIO_do_handshake() failed");
 	char s[256];	
 	safef(s, sizeof s, "SSL error: %s", ERR_reason_error_string(ERR_get_error()));
 	xerr(s);
@@ -176,8 +261,8 @@ while (1)
 	FD_SET(fd, &readfds);
 	FD_SET(fd, &writefds);
 	}
-    tv.tv_sec = 10;  // timeout
-    tv.tv_usec = 0;
+    tv.tv_sec = (long) (DEFAULTCONNECTTIMEOUTMSEC/1000);  // timeout default 10 seconds
+    tv.tv_usec = (long) (((DEFAULTCONNECTTIMEOUTMSEC/1000)-tv.tv_sec)*1000000);
 
     err = select(fd + 1, &readfds, &writefds, NULL, &tv);
     if (err < 0) 
@@ -237,8 +322,8 @@ while (1)
     if (srd == 0)
 	FD_SET(params->sv[1], &readfds);
 
-    tv.tv_sec = 10;   // timeout
-    tv.tv_usec = 0;
+    tv.tv_sec = (long) (DEFAULTCONNECTTIMEOUTMSEC/1000);  // timeout default 10 seconds
+    tv.tv_usec = (long) (((DEFAULTCONNECTTIMEOUTMSEC/1000)-tv.tv_sec)*1000000);
 
     err = select(max(fd,params->sv[1]) + 1, &readfds, &writefds, NULL, &tv);
 
@@ -264,7 +349,7 @@ while (1)
 	    if (srd == -1)
 		{
 		if (errno != 104) // udcCache often closes causing "Connection reset by peer"
-		    xerrno("error reading https socket");
+		    xerrno("error reading user pipe for https socket");
 		goto cleanup;
 		}
 	    if (srd == 0) 
@@ -317,12 +402,40 @@ while (1)
 	    // write the https data received immediately back on socket to user, and it's ok if it blocks.
 	    while(bwt < brd)
 		{
+		// NOTE: Intended as a thread-specific library-safe way not to ignore SIG_PIPE for the entire application.
+		// temporarily block sigpipe on this thread
+		sigset_t sigpipe_mask;
+		sigemptyset(&sigpipe_mask);
+		sigaddset(&sigpipe_mask, SIGPIPE);
+		sigset_t saved_mask;
+		if (pthread_sigmask(SIG_BLOCK, &sigpipe_mask, &saved_mask) == -1) {
+		    perror("pthread_sigmask");
+		    exit(1);
+		}
 		int bwtx = write(params->sv[1], bbuf+bwt, brd-bwt);
+		int saveErrno = errno;
+		if ((bwtx == -1) && (saveErrno == EPIPE))
+		    { // if there was a EPIPE, accept and consume the SIGPIPE now.
+		    int sigErr, sig;
+		    if ((sigErr = sigwait(&sigpipe_mask, &sig)) != 0) 
+			{
+			errno = sigErr;
+			perror("sigwait");
+			exit(1);
+			}
+		    }
+		// restore signal mask on this thread
+		if (pthread_sigmask(SIG_SETMASK, &saved_mask, 0) == -1) 
+		    {
+		    perror("pthread_sigmask");
+		    exit(1);
+		    }
+		errno = saveErrno;
 		if (bwtx == -1)
 		    {
 		    if ((errno != 104)  // udcCache often closes causing "Connection reset by peer"
 		     && (errno !=  32)) // udcCache often closes causing "Broken pipe"
-			xerrno("error writing https data back to user socket");
+			xerrno("error writing https data back to user pipe");
 		    goto cleanup;
 		    }
 		bwt += bwtx;
@@ -335,13 +448,14 @@ while (1)
 
 cleanup:
 
-BIO_free_all(sbio);
+BIO_free_all(sbio);  // will free entire chain of bios
+close(fd);     // Needed because we use BIO_NOCLOSE above. Someday might want to re-use a connection.
 close(params->sv[1]);  /* we are done with it */
 
 return NULL;
 }
 
-int netConnectHttps(char *hostName, int port)
+int netConnectHttps(char *hostName, int port, boolean noProxy)
 /* Return socket for https connection with server or -1 if error. */
 {
 
@@ -353,8 +467,13 @@ struct netConnectHttpsParams *params;
 AllocVar(params);
 params->hostName = cloneString(hostName);
 params->port = port;
+params->noProxy = noProxy;
 
 socketpair(AF_UNIX, SOCK_STREAM, 0, params->sv);
+
+// netBlockBrokenPipes(); works, but is heavy handed 
+//  and ignores SIGPIPE on all connections for all threads in the entire application. 
+// We are trying something more subtle and library and thread-friendly instead.
 
 int rc;
 rc = pthread_create(&params->thread, NULL, netConnectHttpsThread, (void *)params);
@@ -369,17 +488,3 @@ return params->sv[0];
 
 }
 
-#else
-
-#include <stdarg.h>
-#include "common.h"
-#include "errAbort.h"
-
-int netConnectHttps(char *hostName, int port)
-/* Start https connection with server or die. */
-{
-errAbort("No openssl available in netConnectHttps for %s : %d", hostName, port);
-return -1;   /* will never get to here, make compiler happy */
-}
-
-#endif

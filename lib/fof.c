@@ -2,6 +2,7 @@
  *
  * This file is copyright 2002 Jim Kent, but license is hereby
  * granted for all use - public, private or commercial. */
+
 #include "common.h"
 #include "localmem.h"
 #include "sig.h"
@@ -477,7 +478,7 @@ bits32 sig = fofSig;
 bits32 elCount = 0;
 bits16 fileCount = inCount;
 struct fofRecList *recList = NULL, *rl;
-int i, fileIx, itemSize;
+int i, fileIx;
 char *lastName = "";
 int maxMod = 10000;
 
@@ -546,7 +547,6 @@ writeOne(out, sig);
 writeOne(out, elCount);
 writeOne(out, fileCount);
 writeOne(out, maxNameSize);
-itemSize = sizeof(bits32) +sizeof(bits32) + sizeof(UBYTE) + maxNameSize;
 for (i=0; i<inCount; ++i)
     {
     char *name = inFiles[i];

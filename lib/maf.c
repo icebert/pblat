@@ -1,4 +1,8 @@
 /* maf.c - Read/write maf format. */
+
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "linefile.h"
 #include "errAbort.h"
@@ -7,6 +11,7 @@
 #include "axt.h"
 #include "maf.h"
 #include "hash.h"
+#include "net.h"
 #include <fcntl.h>
 
 
@@ -20,7 +25,12 @@ struct lineFile *lf;
 char *line, *word;
 char *sig = "##maf";
 
-if ((lf = lineFileMayOpen(fileName, TRUE)) == NULL)
+if ( hasProtocol(fileName))
+    lf = lineFileUdcMayOpen(fileName, TRUE);
+else
+    lf = lineFileMayOpen(fileName, TRUE);
+
+if (lf == NULL)
     return NULL;
 AllocVar(mf);
 mf->lf = lf;
@@ -278,18 +288,18 @@ fprintf(f, "\n");
 }
 
 
-void mafWrite(FILE *f, struct mafAli *ali)
+void mafWriteDelimiter(FILE *f, struct mafAli *ali, char delimiter)
 /* Write next alignment to file. */
 {
 struct mafComp *comp;
 int srcChars = 0, startChars = 0, sizeChars = 0, srcSizeChars = 0;
 
 /* Write out alignment header */
-fprintf(f, "a score=%f\n", ali->score);
+fprintf(f, "a score=%f%c", ali->score, delimiter);
 
 /* include region definition */
 if (ali->regDef != NULL)
-    fprintf(f, "r %s %d %s\n", ali->regDef->type, ali->regDef->size, ali->regDef->id);
+    fprintf(f, "r %s %d %s%c", ali->regDef->type, ali->regDef->size, ali->regDef->id, delimiter);
 
 /* Figure out length of each field. */
 for (comp = ali->components; comp != NULL; comp = comp->next)
@@ -317,28 +327,34 @@ for (comp = ali->components; comp != NULL; comp = comp->next)
 for (comp = ali->components; comp != NULL; comp = comp->next)
     {
     if ((comp->size == 0) && (comp->leftStatus))
-	fprintf(f, "e %-*s %*d %*d %c %*d %c\n", 
+	fprintf(f, "e %-*s %*d %*d %c %*d %c%c", 
 	    srcChars, comp->src, startChars, comp->start, 
 	    sizeChars, comp->leftLen, comp->strand, 
-	    srcSizeChars, comp->srcSize, comp->leftStatus);
+	    srcSizeChars, comp->srcSize, comp->leftStatus, delimiter);
     else
 	{
-	fprintf(f, "s %-*s %*d %*d %c %*d %s\n", 
+	fprintf(f, "s %-*s %*d %*d %c %*d %s%c", 
 	    srcChars, comp->src, startChars, comp->start, 
 	    sizeChars, comp->size, comp->strand, 
-	    srcSizeChars, comp->srcSize, comp->text);
+	    srcSizeChars, comp->srcSize, comp->text, delimiter);
 
 	if (comp->quality)
-		fprintf(f, "q %-*s %s\n",
+		fprintf(f, "q %-*s %s%c",
 		srcChars + startChars + sizeChars + srcSizeChars + 5,
-		comp->src, comp->quality);
+		comp->src, comp->quality, delimiter);
 
 	if (comp->leftStatus)
-	    fprintf(f,"i %-*s %c %d %c %d\n",srcChars,comp->src,
-		comp->leftStatus,comp->leftLen,comp->rightStatus,comp->rightLen);
+	    fprintf(f,"i %-*s %c %d %c %d%c",srcChars,comp->src,
+		comp->leftStatus,comp->leftLen,comp->rightStatus,comp->rightLen, delimiter);
 	}
 
     }
+}
+
+void mafWrite(FILE *f, struct mafAli *ali)
+/* Write next alignment to file. */
+{
+mafWriteDelimiter(f, ali, '\n');
 
 /* Write out blank separator line. */
 fprintf(f, "\n");
@@ -738,8 +754,8 @@ for (mc = maf->components; mc != NULL; mc = mc->next)
     reverseIntRange(&mc->start, &e, mc->srcSize);
     if (mc->text != NULL)
         reverseComplement(mc->text, maf->textSize);
-	if (mc->quality != NULL)
-		reverseBytes(mc->quality, maf->textSize);
+    if (mc->quality != NULL)
+	reverseBytes(mc->quality, maf->textSize);
     if (mc->strand == '-')
         mc->strand = '+';
     else

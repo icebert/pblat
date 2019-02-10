@@ -1,6 +1,9 @@
 /* synQueue - a sychronized message queue for messages between
  * threads. */
 
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "dlist.h"
 #include "pthreadWrap.h"
@@ -52,6 +55,13 @@ dlListFreeAndVals(&sq->queue);
 pthreadCondDestroy(&sq->cond);
 pthreadMutexDestroy(&sq->mutex);
 freez(pSq);
+}
+
+void synQueuePutUnprotected(struct synQueue *sq, void *message)
+/* Add message to end of queue without protecting against multithreading
+ * contention - used before pthreads are launched perhaps. */
+{
+dlAddValTail(sq->queue, message);
 }
 
 void synQueuePut(struct synQueue *sq, void *message)

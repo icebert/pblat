@@ -1,25 +1,22 @@
 /* knetUdc -- install udc i/o functions in knetfile interface in samtools. */
 /* As of 2/23/10, the KNETFILE_HOOKS extension is a UCSC-local modification of samtools. */
 
-#if ((defined USE_BAM || defined USE_TABIX) && defined KNETFILE_HOOKS)
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 
 #include "common.h"
 #include "udc.h"
 #include "knetUdc.h"
-#include "knetfile.h"
-
-
-struct knetFile_s {
-    struct udcFile *udcf;
-}; // typedef'd to knetFile in knetfile.h
+#include "htslib/knetfile.h"
 
 static char *udcCacheDir = NULL;
 
 static knetFile *kuOpen(const char *filename, const char *mode)
 /* Open the given filename with mode which must be "r". */
 {
-if (!sameOk((char *)mode, "r"))
-    errAbort("mode passed to kuOpen must be 'r' not '%s'", mode);
+if (!(sameOk((char *)mode, "r") || sameOk((char *)mode, "rb")))
+    errAbort("mode passed to kuOpen must be 'r' or 'rb' not '%s'", mode);
 struct udcFile *udcf = udcFileMayOpen((char *)filename, udcCacheDir);
 if (udcf == NULL)
     return NULL;
@@ -83,4 +80,4 @@ void knetUdcInstall()
 knet_init_alt(kuOpen, kuDopen, kuRead, kuSeek, kuTell, kuClose);
 }
 
-#endif//def (USE_BAM || USE_TABIX) && KNETFILE_HOOKS
+

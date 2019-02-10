@@ -7,6 +7,9 @@
  * Beware the several static/global variables which can be
  * changed by various function calls. */
 
+/* Copyright (C) 2013 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "limits.h"
 #include "localmem.h"
@@ -211,21 +214,20 @@ tempR.val = NULL;
 return rbTreeFind(tree, &tempR) != NULL;
 }
 
-static struct range *rangeList;
-
-static void rangeListAdd(void *v)
+static void rangeListAdd(void *v, void *context)
 /* Callback to add item to range list. */
 {
 struct range *r = v;
-slAddHead(&rangeList, r);
+struct range **list = (struct range **)context;
+slAddHead(list, r);
 }
 
 struct range *rangeTreeList(struct rbTree *tree)
 /* Return list of all ranges in tree in order.  Not thread safe. 
  * No need to free this when done, memory is local to tree. */
 {
-rangeList = NULL;
-rbTreeTraverse(tree, rangeListAdd);
+struct range *rangeList = NULL;
+rbTreeTraverseWithContext(tree, rangeListAdd, &rangeList);
 slReverse(&rangeList);
 return rangeList;
 }
@@ -254,8 +256,8 @@ struct range *rangeTreeAllOverlapping(struct rbTree *tree, int start, int end)
 struct range tempR;
 tempR.start = start;
 tempR.end = end;
-rangeList = NULL;
-rbTreeTraverseRange(tree, &tempR, &tempR, rangeListAdd);
+struct range *rangeList = NULL;
+rbTreeTraverseRangeWithContext(tree, &tempR, &tempR, rangeListAdd, &rangeList);
 slReverse(&rangeList);
 return rangeList;
 }
@@ -316,6 +318,24 @@ int rangeTreeOverlapTotalSize(struct rbTree *tree)
 {
 return rangeTreeOverlapSize(tree, INT_MIN, INT_MAX);
 }
+
+void rangeTreeSumRangeCallback(void *item, void *context)
+/* This is a callback for rbTreeTraverse with context.  It just adds up
+ * end-start */
+{
+struct range *range = item;
+long long *pSum = context;
+*pSum += range->end - range->start;
+}
+
+long long rangeTreeSumRanges(struct rbTree *tree)
+/* Return sum of end-start of all items. */
+{
+long long sum = 0;
+rbTreeTraverseWithContext(tree, rangeTreeSumRangeCallback, &sum);
+return sum;
+}
+
 
 struct rbTree *rangeTreeNew()
 /* Create a new, empty, rangeTree. */

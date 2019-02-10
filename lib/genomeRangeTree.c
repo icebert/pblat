@@ -7,6 +7,9 @@
  * so it should be able to handle genomes with a very large 
  * number of scaffolds. See rangeTree for more information. */
 
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "sig.h"
 #include "localmem.h"
@@ -39,27 +42,29 @@ return genomeRangeTreeNewSize(0);
 void genomeRangeTreeFree(struct genomeRangeTree **pTree)
 /* Free up genomeRangeTree.  */
 {
-/* need to manually free object due to thee way rbTreeNewDetailed is done */
-struct hashCookie hc = hashFirst((*pTree)->hash);
-struct hashEl *hel;
-while ((hel = hashNext(&hc)) != NULL)
-    freeMem(hel->val);
+struct genomeRangeTree *grt = *pTree;
+if (grt != NULL)
+    {
+    /* need to manually free object due to thee way rbTreeNewDetailed is done */
+    struct hashCookie hc = hashFirst(grt->hash);
+    struct hashEl *hel;
+    while ((hel = hashNext(&hc)) != NULL)
+	freeMem(hel->val);
 
-lmCleanup(&((*pTree)->lm));  /* clean up all the memory for all nodes for all trees */
-freeHash(&((*pTree)->hash)); /* free the hash table including names (trees are freed by lmCleanup) */
-freez(pTree);                /* free this */
+    lmCleanup(&(grt->lm));  /* clean up all the memory for all nodes for all trees */
+    freeHash(&(grt->hash)); /* free the hash table including names (trees are freed by lmCleanup) */
+    freez(pTree);                /* free this */
+    }
 }
 
 struct rbTree *genomeRangeTreeFindRangeTree(struct genomeRangeTree *tree, char *chrom)
-/* Find the rangeTree for this chromosome, if any. Returns NULL if chrom not found.
- * Free with genomeRangeTreeFree. */
+/* Find the rangeTree for this chromosome, if any. Returns NULL if chrom not found. */
 {
 return hashFindVal(tree->hash, chrom);
 }
 
 struct rbTree *genomeRangeTreeFindOrAddRangeTree(struct genomeRangeTree *tree, char *chrom)
-/* Find the rangeTree for this chromosome, or add new chrom and empty rangeTree if not found.
- * Free with genomeRangeTreeFree. */
+/* Find the rangeTree for this chromosome, or add new chrom and empty rangeTree if not found. */
 {
 struct hashEl *hel;
 hel = hashStore(tree->hash, chrom);
@@ -181,5 +186,16 @@ for (chrom = chromList ; chrom ; chrom = chrom->next)
 dyStringAppend(tmpTreeToString, "]");
 hashElFreeList(&chromList);
 return tmpTreeToString;
+}
+
+long long genomeRangeTreeSumRanges(struct genomeRangeTree *grt)
+/* Sum up all ranges in tree. */
+{
+long long sum = 0;
+struct hashEl *chrom, *chromList = hashElListHash(grt->hash);
+for (chrom = chromList; chrom != NULL; chrom = chrom->next)
+    rbTreeTraverseWithContext(chrom->val, rangeTreeSumRangeCallback, &sum);
+hashElFreeList(&chromList);
+return sum;
 }
 

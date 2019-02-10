@@ -496,17 +496,6 @@ while ((c = *s++) != 0)
 return TRUE;
 }
 
-static boolean isAllDigit(char *s)
-/* Returns TRUE if every character in string is a digit. */
-{
-char c;
-while ((c = *s++) != 0)
-    {
-    if (!isdigit(c)) return FALSE;
-    }
-return TRUE;
-}
-
 boolean wormIsOrfName(char *in)
 /* Check to see if the input is formatted correctly to be
  * an ORF. */
@@ -527,7 +516,7 @@ if (partCount == 2)
     {
     char *parts[2];
     chopString(buf, "-", parts, 2);
-    return isAllAlpha(parts[0]) && isAllDigit(parts[1]);
+    return isAllAlpha(parts[0]) && isAllDigits(parts[1]);
     }
 else
     {
@@ -602,8 +591,7 @@ while (fgets(lineBuf, sizeof(lineBuf), f))
     if (strncmp(lineBuf, orfName, nameLen) == 0 && lineBuf[nameLen] == ' ')
         {
         char *words[2];
-        int wordCount;
-        wordCount = chopLine(lineBuf, words);
+        chopLine(lineBuf, words);  // ignore return wordCount
         assert((int)strlen(words[1]) < bufSize);
         strncpy(geneNameBuf, words[1], bufSize);
         ok = TRUE;

@@ -1,5 +1,8 @@
 /* blastParse - read in blast output into C data structure. */
 
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "dystring.h"
 #include "linefile.h"
@@ -51,17 +54,6 @@ static void bfSyntax(struct blastFile *bf)
 /* General error message. */
 {
 bfError(bf, "Can't cope with BLAST output syntax");
-}
-
-static boolean isAllDigits(char *s)
-/* test if a string is all digits */
-{
-for (; *s != '\0'; s++)
-    {
-    if (!isdigit(*s))
-        return FALSE;
-    }
-return TRUE;
 }
 
 static boolean isAllDashes(char *s)

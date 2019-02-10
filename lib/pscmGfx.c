@@ -20,8 +20,6 @@ int isinf(double x) { return !finite(x) && x==x; }
 #include "vGfx.h"
 #include "vGfxPrivate.h"
 
-
-
 static struct pscmGfx *boxPscm;	 /* Used to keep from drawing the same box again
                                   * and again with no other calls between.  This
 				  * ends up cutting down the file size by 5x
@@ -93,98 +91,24 @@ void pscmUnclip(struct pscmGfx *pscm)
 pscmSetClip(pscm, 0, 0, pscm->ps->userWidth, pscm->ps->userHeight);
 }
 
-#ifndef COLOR32
-static Color pscmClosestColor(struct pscmGfx *pscm, 
-	unsigned char r, unsigned char g, unsigned char b)
-/* Returns closest color in color map to r,g,b */
-{
-struct rgbColor *c = pscm->colorMap;
-int closestDist = 0x7fffffff;
-int closestIx = -1;
-int dist, dif;
-int i;
-
-for (i=0; i<pscm->colorsUsed; ++i)
-    {
-    dif = c->r - r;
-    dist = dif*dif;
-    dif = c->g - g;
-    dist += dif*dif;
-    dif = c->b - b;
-    dist += dif*dif;
-    if (dist < closestDist)
-        {
-        closestDist = dist;
-        closestIx = i;
-        }
-    ++c;
-    }
-return closestIx;
-}
-
-static Color pscmAddColor(struct pscmGfx *pscm, 
-	unsigned char r, unsigned char g, unsigned char b)
-/* Adds color to end of color map if there's room. */
-{
-int colIx = pscm->colorsUsed;
-struct rgbColor *c = pscm->colorMap + pscm->colorsUsed;
-c->r = r;
-c->g = g;
-c->b = b;
-pscm->colorsUsed += 1;
-colHashAdd(pscm->colorHash, r, g, b, colIx);;
-return (Color)colIx;
-}
-#endif
-
 int pscmFindColorIx(struct pscmGfx *pscm, int r, int g, int b)
 /* Returns closest color in color map to rgb values.  If it doesn't
  * already exist in color map and there's room, it will create
  * exact color in map. */
 {
-#ifdef COLOR32
 return MAKECOLOR_32(r,g,b);
-#else
-struct colHashEl *che;
-if (r>255||g>255||b>255) 
-    errAbort("RGB values out of range (0-255).  r:%d g:%d b:%d", r, g, b);
-if ((che = colHashLookup(pscm->colorHash, r, g, b)) != NULL)
-    return che->ix;
-if (pscm->colorsUsed < 256)
-    return pscmAddColor(pscm, r, g, b);
-return pscmClosestColor(pscm, r, g, b);
-#endif
 }
-
 
 struct rgbColor pscmColorIxToRgb(struct pscmGfx *pscm, int colorIx)
 /* Return rgb value at color index. */
 {
-#ifdef COLOR32
 static struct rgbColor rgb;
 rgb.r = (colorIx >> 0) & 0xff;
 rgb.g = (colorIx >> 8) & 0xff;
 rgb.b = (colorIx >> 16) & 0xff;
 
 return rgb;
-#else
-return pscm->colorMap[colorIx];
-#endif
 }
-
-#ifndef COLOR32
-static void pscmSetDefaultColorMap(struct pscmGfx *pscm)
-/* Set up default color map for a memGfx. */
-{
-/* Note dependency in order here and in MG_WHITE, MG_BLACK, etc. */
-int i;
-for (i=0; i<ArraySize(mgFixedColors); ++i)
-    {
-    struct rgbColor *c = &mgFixedColors[i];
-    pscmFindColorIx(pscm, c->r, c->g, c->b);
-    }
-}
-#endif
 
 void pscmSetWriteMode(struct pscmGfx *pscm, unsigned int writeMode)
 /* Set write mode */
@@ -200,10 +124,6 @@ struct pscmGfx *pscm;
 AllocVar(pscm);
 pscm->ps = psOpen(file, width, height, 72.0 * 7.5, 0, 0);
 psTranslate(pscm->ps,0.5,0.5);  /* translate all coordinates to pixel centers */
-#ifndef COLOR32
-pscm->colorHash = colHashNew();
-pscmSetDefaultColorMap(pscm);
-#endif
 pscm->clipMinX = pscm->clipMinY = 0;
 pscm->clipMaxX = width;     
 pscm->clipMaxY = height;
@@ -228,16 +148,12 @@ void pscmSetColor(struct pscmGfx *pscm, Color color)
 {
 struct rgbColor *col;
 
-#ifdef COLOR32
 struct rgbColor myCol;
 col = &myCol;
 
 col->r = (color >> 0) & 0xff;
 col->g = (color >> 8) & 0xff;
 col->b = (color >> 16) & 0xff;
-#else
-col = pscm->colorMap + color;
-#endif
 
 if (color != pscm->curColor)
     {
@@ -302,8 +218,6 @@ void pscmDot(struct pscmGfx *pscm, int x, int y, int color)
 {
 pscmBox(pscm, x, y, 1, 1, color);
 }
-
-
 
 static void pscmVerticalSmear(struct pscmGfx *pscm,
 	int xOff, int yOff, int width, int height, 
@@ -438,7 +352,6 @@ double fatPixel(double c, double center, double fat)
 {
 return center+((c-center)*fat);
 }
-
 
 void pscmPolyFatten(struct psPoly *psPoly, 
   int minX, int maxX, int minY, int maxY)
@@ -686,7 +599,6 @@ for (;;)
     if (p == q) 
 	break;
     }
-
 }
 
 void pscmDrawPoly(struct pscmGfx *pscm, struct gfxPoly *poly, Color color, 
@@ -726,8 +638,6 @@ else
 psPolyFree(&psPoly);
 }
 
-
-
 void pscmFatLine(struct pscmGfx *pscm, double x1, double y1, double x2, double y2)
 /* Draw a line from x1/y1 to x2/y2 by making a filled polygon.
  *  This also avoids some problems with stroke-width variation
@@ -748,7 +658,6 @@ x1 = fatPixel(x1,cX,fX);
 x2 = fatPixel(x2,cX,fX);
 y1 = fatPixel(y1,cY,fY);
 y2 = fatPixel(y2,cY,fY);
-
 
 /* calculate 4 corners {h,i,j,k} of the rectangle covered */
 
@@ -772,7 +681,6 @@ psPolyFree(&psPoly);
 
 }
 
-
 void pscmLine(struct pscmGfx *pscm, 
 	int x1, int y1, int x2, int y2, int color)
 /* Draw a line from one point to another. */
@@ -786,6 +694,56 @@ else
 boxPscm = NULL;
 }
 
+void pscmEllipse(struct pscmGfx *pscm, int x1, int y1, int x2, int y2, Color color, 
+                        int mode, boolean isDashed)
+/* Draw an ellipse specified as a rectangle. Args are left-most and top-most points.
+ * Optionally draw half-ellipse (top or bottom) */
+{
+pscmSetColor(pscm, color);
+if (isDashed)
+    psSetDash(pscm->ps, TRUE);
+else
+    psSetDash(pscm->ps, FALSE);
+int startAngle = 0;
+int endAngle = 360;
+if (mode == ELLIPSE_TOP)
+    endAngle = 180;
+else if (mode == ELLIPSE_BOTTOM)
+    startAngle = 180;
+int yrad = abs(y1 - y2)/2;
+int xrad = abs(x1 - x2)/2;
+x2 = x2 - xrad;
+y1 = y1 - yrad;
+psDrawEllipse(pscm->ps, (double)x2, (double)y1, (double)xrad, (double)yrad,
+                startAngle, endAngle);
+psSetDash(pscm->ps, FALSE);
+}
+
+static double bezierQuadraticToCubic(int a, int b)
+/* Derive cubic control points from quadratic control point. */
+{
+return (double)a + (2 * (b - a))/3.0;
+}
+
+void pscmCurve(struct pscmGfx *pscm, int x1, int y1, int x2, int y2, int x3, int y3, Color color,
+                        boolean isDashed)
+/* Draw Bezier curve specified by 3 points (quadratic Bezier).
+ * The points are: first (p1) and last (p3), and 1 control point (p2).
+ */ 
+{
+pscmSetColor(pscm, color);
+if (isDashed)
+    psSetDash(pscm->ps, TRUE);
+else
+    psSetDash(pscm->ps, FALSE);
+// PostScript bezier is cubic -- derive the two control points from the single quadratic control point
+double c1x = bezierQuadraticToCubic(x1, x2);
+double c1y = bezierQuadraticToCubic(y1, y2);
+double c2x = bezierQuadraticToCubic(x3, x2);
+double c2y = bezierQuadraticToCubic(y3, y2);
+psDrawCurve(pscm->ps, (double)x1, (double)y1, c1x, c1y, c2x, c2y, (double)x3, (double)y3);
+psSetDash(pscm->ps, FALSE);
+}
 
 struct vGfx *vgOpenPostScript(int width, int height, char *fileName)
 /* Open up something that will someday be a PostScript file. */
@@ -806,6 +764,8 @@ vg->unclip = (vg_unclip)pscmUnclip;
 vg->verticalSmear = (vg_verticalSmear)pscmVerticalSmear;
 vg->fillUnder = (vg_fillUnder)pscmFillUnder;
 vg->drawPoly = (vg_drawPoly)pscmDrawPoly;
+vg->ellipse = (vg_ellipse)pscmEllipse;
+vg->curve = (vg_curve)pscmCurve;
 vg->setHint = (vg_setHint)pscmSetHint;
 vg->getHint = (vg_getHint)pscmGetHint;
 vg->getFontPixelHeight = (vg_getFontPixelHeight)pscmGetFontPixelHeight;

@@ -3,6 +3,10 @@
  * a postScript file.  Perhaps the most important thing it
  * does is convert 0,0 from being at the bottom left to
  * being at the top left. */
+
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "psPoly.h"
 #include "psGfx.h"
@@ -206,33 +210,49 @@ fprintf(f, "%f scalefont setfont\n", -size*ps->yScale*1.2);
 ps->fontHeight = size*0.8;
 }
 
+void psTextOutEscaped(struct psGfx *ps, char *text)
+/* Output post-script-escaped text. 
+ * Notice that ps uses escaping similar to C itself.*/
+{
+char c;
+while ((c = *text++) != 0)
+    {
+    if (c == '(')
+        fprintf(ps->f, "\\(");  // left-paren
+    else if (c == ')')
+        fprintf(ps->f, "\\)");  // right-paren
+    else if (c == '\\')
+        fprintf(ps->f, "\\\\"); // back-slash
+    else if (c == '\n')
+        fprintf(ps->f, "\\n");  // new-line
+    else if (c == '\r')
+        fprintf(ps->f, "\\r");  // carriage-return
+    else if (c == '\t')
+        fprintf(ps->f, "\\t");  // tab
+    else if (c == '\b')
+        fprintf(ps->f, "\\b");  // back-space
+    else if (c == '\f')
+        fprintf(ps->f, "\\f");  // form-feed
+    else
+	fprintf(ps->f, "%c", c);
+    }
+}
+
 void psTextBox(struct psGfx *ps, double x, double y, char *text)
 /* Output text in current font at given position. */
 {
-char c;
 psMoveTo(ps, x, y + ps->fontHeight);
 fprintf(ps->f, "(");
-while ((c = *text++) != 0)
-    {
-    if (c == ')' || c == '(')
-        fprintf(ps->f, "\\");
-    fprintf(ps->f, "%c", c);
-    }
+psTextOutEscaped(ps, text);
 fprintf(ps->f, ") fillTextBox\n");
 }
 
 void psTextAt(struct psGfx *ps, double x, double y, char *text)
 /* Output text in current font at given position. */
 {
-char c;
 psMoveTo(ps, x, y + ps->fontHeight);
 fprintf(ps->f, "(");
-while ((c = *text++) != 0)
-    {
-    if (c == ')' || c == '(')
-        fprintf(ps->f, "\\");
-    fprintf(ps->f, "%c", c);
-    }
+psTextOutEscaped(ps, text);
 fprintf(ps->f, ") show\n");
 }
 
@@ -243,7 +263,9 @@ void psTextRight(struct psGfx *ps, double x, double y,
 {
 y += (height - ps->fontHeight)/2;
 psMoveTo(ps, x+width, y + ps->fontHeight);
-fprintf(ps->f, "(%s) showBefore\n", text);
+fprintf(ps->f, "(");
+psTextOutEscaped(ps, text);
+fprintf(ps->f, ") showBefore\n");
 }
 
 void psTextCentered(struct psGfx *ps, double x, double y, 
@@ -251,16 +273,10 @@ void psTextCentered(struct psGfx *ps, double x, double y,
 	char *text)
 /* Draw a line of text centered in box defined by x/y/width/height */
 {
-char c;
 y += (height - ps->fontHeight)/2;
 psMoveTo(ps, x+width/2, y + ps->fontHeight);
 fprintf(ps->f, "(");
-while ((c = *text++) != 0)
-    {
-    if (c == ')' || c == '(')
-        fprintf(ps->f, "\\");
-    fprintf(ps->f, "%c", c);
-    }
+psTextOutEscaped(ps, text);
 fprintf(ps->f, ") showMiddle\n");
 }
 
@@ -270,7 +286,9 @@ void psTextDown(struct psGfx *ps, double x, double y, char *text)
 psMoveTo(ps, x, y);
 fprintf(ps->f, "gsave\n");
 fprintf(ps->f, "-90 rotate\n");
-fprintf(ps->f, "(%s) show\n", text);
+fprintf(ps->f, "(");
+psTextOutEscaped(ps, text);
+fprintf(ps->f, ") show\n");
 fprintf(ps->f, "grestore\n");
 }
 
@@ -340,7 +358,6 @@ else
     }
 }
 
-
 void psFillEllipse(struct psGfx *ps, double x, double y, double xrad, double yrad)
 {
 FILE *f = ps->f;
@@ -355,7 +372,10 @@ fprintf(f, "fill\n");
 }
 
 void psDrawEllipse(struct psGfx *ps, double x, double y, double xrad, double yrad,
-    double startAngle, double endAngle)
+                                        double startAngle, double endAngle)
+/* Draw ellipse.  Args are center point x and y, horizontal radius, vertical radius,
+        start and end angles (e.g. 0 and 180 to draw top half, 180 and 360 for bottom)
+ */
 {
 FILE *f = ps->f;
 fprintf(f, "newpath\n");
@@ -364,8 +384,32 @@ psWhOut(ps, xrad, yrad);
 psFloatOut(f, startAngle);
 psFloatOut(f, endAngle);
 fprintf(f, "ellipse\n");
-fprintf(f, "closepath\n");
 fprintf(f, "stroke\n");
+}
+
+void psDrawCurve(struct psGfx *ps, double x1, double y1, double x2, double y2,
+                                        double x3, double y3, double x4, double y4)
+/* Draw Bezier curve specified by 4 points: first (p1) and last (p4)
+ *      and 2 control points (p2, p3) */
+{
+FILE *f = ps->f;
+psXyOut(ps, x1, y1);
+fprintf(f, "moveto\n");
+psXyOut(ps, x2, y2);
+psXyOut(ps, x3, y3);
+psXyOut(ps, x4, y4);
+fprintf(f, "curveto\n");
+fprintf(f, "stroke\n");
+}
+
+void psSetDash(struct psGfx *ps, boolean on)
+/* Set dashed line mode on or off. If set on, show two points marked, with one point of space */
+{
+FILE *f = ps->f;
+if (on)
+    fprintf(f, "[2 1] 0 setdash\n");
+else
+    fprintf(f, "[] 0 setdash\n");
 }
 
 char * convertEpsToPdf(char *epsFile) 

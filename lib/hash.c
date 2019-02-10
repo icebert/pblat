@@ -241,7 +241,8 @@ return hashAdd(hash, name, NULL)->name;
 }
 
 int hashIntVal(struct hash *hash, char *name)
-/* Find size of name in hash or die trying. */
+/* Return integer value associated with name in a simple 
+ * hash of ints. */
 {
 void *val = hashMustFindVal(hash, name);
 return ptToInt(val);
@@ -371,6 +372,19 @@ hash->expansionFactor = defaultExpansionFactor;   /* Expand when elCount > size*
 return hash;
 }
 
+void hashReverseAllBucketLists(struct hash *hash)
+/* Reverse all hash bucket list.  You might do this to
+ * get them back in the same order things were added to the hash */
+{
+int i;
+for (i=0; i<hash->size; ++i)
+    {
+    struct hashEl *hel = hash->table[i];
+    if (hel != NULL && hel->next != NULL)	    
+	slReverse(&hash->table[i]);
+    }
+}
+
 void hashResize(struct hash *hash, int powerOfTwoSize)
 /* Resize the hash to a new size */
 {
@@ -379,6 +393,11 @@ struct hashEl **oldTable = hash->table;
 
 if (powerOfTwoSize == 0)
     powerOfTwoSize = 12;
+if (powerOfTwoSize > hashMaxSize)
+    powerOfTwoSize =  hashMaxSize;
+if (hash->powerOfTwoSize == powerOfTwoSize)
+    return;
+
 assert(powerOfTwoSize <= hashMaxSize && powerOfTwoSize > 0);
 hash->powerOfTwoSize = powerOfTwoSize;
 hash->size = (1<<powerOfTwoSize);
@@ -399,20 +418,15 @@ for (i=0; i<oldHashSize; ++i)
 	}
     }
 /* restore original list order */
-for (i=0; i<hash->size; ++i)
-    {
-    struct hashEl *hel = hash->table[i];
-    if (hel != NULL && hel->next != NULL)	    
-	slReverse(&hash->table[i]);
-    }
+hashReverseAllBucketLists(hash);
+
 freeMem(oldTable);
 hash->numResizes++;
 }
 
 
 struct hash *hashFromSlNameList(void *list)
-/* Create a hash out of a list of slNames or any kind of list where the */
-/* first field is the next pointer and the second is the name. */
+/* Create a hash out of a list of slNames. */
 {
 struct hash *hash = NULL;
 struct slName *namedList = list, *item;
@@ -421,6 +435,19 @@ if (!list)
 hash = newHash(0);
 for (item = namedList; item != NULL; item = item->next)
     hashAdd(hash, item->name, item);
+return hash;
+}
+
+struct hash *hashSetFromSlNameList(void *list)
+/* Create a hashSet (hash with only keys) out of a list of slNames. */
+{
+struct hash *hash = NULL;
+struct slName *namedList = list, *item;
+if (!list)
+    return NULL;
+hash = newHash(0);
+for (item = namedList; item != NULL; item = item->next)
+    hashAdd(hash, item->name, NULL);
 return hash;
 }
 
@@ -463,6 +490,15 @@ int hashElCmpWithEmbeddedNumbers(const void *va, const void *vb)
 const struct hashEl *a = *((struct hashEl **)va);
 const struct hashEl *b = *((struct hashEl **)vb);
 return cmpStringsWithEmbeddedNumbers(a->name, b->name);
+}
+
+int hashElCmpIntValDesc(const void *va, const void *vb)
+/* Compare two hashEl from a hashInt type hash, with highest integer values
+ * comingFirst. */
+{
+struct hashEl *a = *((struct hashEl **)va);
+struct hashEl *b = *((struct hashEl **)vb);
+return b->val - a->val;
 }
 
 void *hashElFindVal(struct hashEl *list, char *name)
@@ -715,3 +751,43 @@ for (i=0; i<hash->size; ++i)
     n += bucketLen(hash->table[i]);
 return n;
 }
+
+struct hash *hashFromString(char *string)
+/* parse a whitespace-separated string with tuples in the format name=val or
+ * name="val" to a hash name->val */
+{
+if (string==NULL)
+    return NULL;
+
+struct slPair *keyVals = slPairListFromString(string, TRUE);
+if (keyVals==NULL)
+    return NULL;
+
+struct hash *nameToVal = newHash(0);
+struct slPair *kv;
+for (kv = keyVals; kv != NULL; kv = kv->next)
+    hashAdd(nameToVal, kv->name, kv->val);
+return nameToVal;
+}
+
+struct hash *hashFromNameArray(char **nameArray, int nameCount)
+/* Create a NULL valued hash on all names in array */
+{
+struct hash *hash = hashNew(0);
+int i;
+for (i=0; i<nameCount; ++i)
+    hashAdd(hash, nameArray[i], NULL);
+return hash;
+}
+
+struct hash *hashFromNameValArray(char *nameVal[][2], int nameValCount)
+/* Make up a hash from nameVal array */
+{
+struct hash *hash = newHash(0);
+int i;
+for (i=0; i<nameValCount; ++i)
+    hashAdd(hash, nameVal[i][0], nameVal[i][1]);
+return hash;
+}
+
+

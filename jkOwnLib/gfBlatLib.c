@@ -725,14 +725,14 @@ struct gfHit *hit;
 int qStart = 0, tStart = 0, qEnd = 0, tEnd = 0, newQ = 0, newT = 0;
 boolean outOfIt = TRUE;		/* Logically outside of a clump. */
 struct gfRange *range;
-BIOPOL *lastQs = NULL, *lastQe = NULL, *lastTs = NULL, *lastTe = NULL;
+BIOPOL *lastQs = NULL, *lastQe = NULL, *lastTs = NULL;
 int (*scoreMatch)(char a, char b) = (isProt ? aaScore2 : dnaScore2);
 int maxDown, minSpan;
 
 if (fastMap)
     {
-    maxDown = 1;
-    minSpan = 50;
+    maxDown = 2;
+    minSpan = 20;
     }
 else
     {
@@ -778,7 +778,6 @@ for (hit = clump->hitList; ; hit = hit->next)
 		lastQs = qs;
 		lastTs = ts;
 		lastQe = qe;
-		lastTe = te;
 		if (qe - qs >= minSpan)
 		    {
 		    AllocVar(range);

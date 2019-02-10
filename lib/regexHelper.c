@@ -1,5 +1,8 @@
 /* regexHelper: easy wrappers on POSIX Extended Regular Expressions (man 7 regex, man 3 regex) */
 
+/* Copyright (C) 2012 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "regexHelper.h"
 #include "hash.h"
 
@@ -41,6 +44,8 @@ static boolean regexMatchSubstrMaybeCase(const char *string, const char *exp,
 /* Return TRUE if string matches regular expression exp;
  * regexec fills in substrArr with substring offsets. */
 {
+if (string == NULL)
+    return FALSE;
 int compileFlags = REG_EXTENDED;
 char desc[256];
 safecpy(desc, sizeof(desc), "Regular expression");
@@ -86,3 +91,47 @@ boolean regexMatchSubstrNoCase(const char *string, const char *exp,
 return regexMatchSubstrMaybeCase(string, exp, substrArr, substrArrSize, TRUE);
 }
 
+void regexSubstringCopy(const char *string, const regmatch_t substr,
+                        char *buf, size_t bufSize)
+/* Copy a substring from string into buf using start and end offsets from substr.
+ * If the substring was not matched then make buf an empty string. */
+{
+if (regexSubstrMatched(substr))
+    safencpy(buf, bufSize, string + substr.rm_so, substr.rm_eo - substr.rm_so);
+else
+    *buf = '\0';
+}
+
+char *regexSubstringClone(const char *string, const regmatch_t substr)
+/* Clone and return a substring from string using start and end offsets from substr.
+ * If the substring was not matched then return a cloned empty string. */
+{
+char *clone = NULL;
+if (regexSubstrMatched(substr))
+    {
+    int len = substr.rm_eo - substr.rm_so;
+    clone = needMem(len + 1);
+    regexSubstringCopy(string, substr, clone, len + 1);
+    }
+else
+    clone = cloneString("");
+return clone;
+}
+
+int regexSubstringInt(const char *string, const regmatch_t substr)
+/* Return the integer value of the substring specified by substr.
+ * If substr was not matched, return 0; you can check first with regexSubstrMatched() if
+ * that's not the desired behavior for unmatched substr. */
+{
+int val = 0;
+if (regexSubstrMatched(substr))
+    {
+    int len = substr.rm_eo - substr.rm_so;
+    char buf[len+1];
+    regexSubstringCopy(string, substr, buf, sizeof(buf));
+    val = atoi(buf);
+    }
+else
+    val = 0;
+return val;
+}

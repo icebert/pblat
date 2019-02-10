@@ -1,3 +1,6 @@
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 /* htmlPage - stuff to read, parse, and submit  htmlPages and forms. 
  *
  * typical usage is:
@@ -21,6 +24,7 @@
 #include "obscure.h"
 #include "filePath.h"
 #include "net.h"
+#include "htmshell.h"
 #include "htmlPage.h"
 
 
@@ -264,6 +268,18 @@ for (s = start; s <= pos; ++s)
 return line;
 }
 
+struct htmlTag *findNextMatchingTag(struct htmlTag *list, char *name)
+/* Return first tag in list that is of type name or NULL if not found*/
+{
+struct htmlTag *tag;
+for (tag = list; tag != NULL; tag = tag->next)
+    {
+    if (sameWord(name, tag->name))
+	return tag;
+    }
+return NULL;
+}
+
 static void tagVaWarn(struct htmlPage *page, struct htmlTag *tag, char *format, 
 	va_list args)
 /* Print warning message and some context of tag. */
@@ -474,6 +490,19 @@ if (val == NULL)
 return val;
 }
 
+boolean isSelfClosingTag(struct htmlTag *tag)
+/* Return strue if last attributes' name is "/" 
+ * Self-closing tags are used with html5 and SGV */
+{
+struct htmlAttribute *att = tag->attributes;
+if (!att)
+    return FALSE;
+while (att->next) att = att->next;
+if (sameString(att->name,"/"))
+    return TRUE;
+return FALSE;
+}
+
 static struct htmlTag *htmlTagScan(char *html, char *dupe)
 /* Scan HTML for tags and return a list of them. 
  * Html is the text to scan, and dupe is a copy of it
@@ -618,6 +647,7 @@ for (;;)
 		AllocVar(att);
 		att->name = cloneString(name);
 		att->val = cloneString(val);
+		attributeDecode(att->val);
 		slAddTail(&tag->attributes, att);
 		s = e;
 		if (gotEnd)
@@ -666,6 +696,15 @@ return sameWord(type, "BUTTON") || sameWord(type, "SUBMIT")
 	|| sameWord(type, "IMAGE");
 }
 
+static boolean areMixableInputTypes(char *type1, char *type2)
+/* Return TRUE if type1 and type 2 can be safely mixed, i.e.
+ * if type1 and type2 both pass isMixableInputType, OR
+ * if type1 or type2 is HIDDEN. */
+{
+return sameWord(type1, "HIDDEN") || sameWord(type2, "HIDDEN")
+    || (isMixableInputType(type1) && isMixableInputType(type2));
+}
+
 static void htmlFormVarAddValue(struct htmlFormVar *var, char *value)
 /* Add value to list of predefined values for var. */
 {
@@ -696,7 +735,9 @@ for (tag = form->startTag->next; tag != form->endTag; tag = tag->next)
 	    type = "TEXT";
 	if (varName == NULL)
 	    {
-	    if (!sameWord(type, "SUBMIT") && !sameWord(type, "CLEAR")
+	    if (!htmlTagAttributeVal(page, tag, "ONCHANGE", NULL)
+	     && !htmlTagAttributeVal(page, tag, "ID", NULL)
+	        && !sameWord(type, "SUBMIT") && !sameWord(type, "CLEAR")
 	    	&& !sameWord(type, "BUTTON") && !sameWord(type, "RESET")
 		&& !sameWord(type, "IMAGE"))
 		tagWarn(page, tag, "Missing NAME attribute");
@@ -705,7 +746,7 @@ for (tag = form->startTag->next; tag != form->endTag; tag = tag->next)
 	var = findOrMakeVar(page, varName, hash, tag, &varList); 
 	if (var->type != NULL && !sameWord(var->type, type))
 	    {
-	    if (!isMixableInputType(var->type) || !isMixableInputType(type))
+	    if (!areMixableInputTypes(var->type, type))
 		tagWarn(page, tag, "Mixing input types %s and %s", var->type, type);
 	    }
 	var->type = type;
@@ -1085,34 +1126,15 @@ for (i=0; i<inLength;++i)
 }
 
 
-char *htmlExpandUrl(char *base, char *url)
-/* Expand URL that is relative to base to stand on its own. 
- * Return NULL if it's not http or https. */
+char *expandUrlOnBase(char *base, char *url)
+/* Figure out first character past host name. Load up
+ * return string with protocol (if any) and host name. 
+ * It is assumed that url is relative to base and does not contain a protocol.*/
 {
 struct dyString *dy = NULL;
 char *hostName, *pastHostName;
-
-/* some mailto: have SGML char encoding, e.g &#97; to hide from spambots */
-url = cloneString(url);	/* Clone because asciiEntityDecode may modify it. */
-asciiEntityDecode(url, url, strlen(url));
-
-/* In easiest case URL is actually absolute and begins with
- * protocol.  Just return clone of url. */
-if (startsWith("http:", url) || startsWith("https:", url))
-    return url;
-
-/* If it's got a colon, but no http or https, then it's some
- * protocol we don't understand, like a mailto.  Just return NULL. */
-if (strchr(url, ':') != NULL)
-    {
-    freez(&url);
-    return NULL;
-    }
-
-/* Figure out first character past host name. Load up
- * return string with protocol (if any) and host name. */
 dy = dyStringNew(256);
-if (startsWith("http:", base) || startsWith("https:", base))
+if (startsWith("http:", base) || startsWith("https:", base) || startsWith("ftp:", base))
     hostName = (strchr(base, ':') + 3);
 else
     hostName = base;
@@ -1155,8 +1177,33 @@ else
 	dyStringAppend(dy, url);
 	}
     }
-freez(&url);
 return dyStringCannibalize(&dy);
+}
+
+char *htmlExpandUrl(char *base, char *url)
+/* Expand URL that is relative to base to stand on its own. 
+ * Return NULL if it's not http or https. */
+{
+
+/* some mailto: have SGML char encoding, e.g &#97; to hide from spambots */
+url = cloneString(url);	/* Clone because asciiEntityDecode may modify it. */
+asciiEntityDecode(url, url, strlen(url));
+
+/* In easiest case URL is actually absolute and begins with
+ * protocol.  Just return clone of url. */
+if (startsWith("http:", url) || startsWith("https:", url))
+    return url;
+
+/* If it's got a colon, but no http or https, then it's some
+ * protocol we don't understand, like a mailto.  Just return NULL. */
+if (strchr(url, ':') != NULL)
+    {
+    freez(&url);
+    return NULL;
+    }
+char *result = expandUrlOnBase(base, url);
+freez(&url);
+return result;
 }
 
 static void appendCgiVar(struct dyString *dy, char *name, char *value)
@@ -1380,7 +1427,7 @@ else if (sameWord(form->method, "POST"))
     cgiVars = htmlFormCgiVars(origPage, form, buttonName, buttonVal, dyHeader);
     contentLength = strlen(cgiVars);
     verbose(3, "POST %s\n", dyUrl->string);
-    dyStringPrintf(dyHeader, "Content-length: %d\r\n", contentLength);
+    dyStringPrintf(dyHeader, "Content-Length: %d\r\n", contentLength);
     sd = netOpenHttpExt(dyUrl->string, form->method, dyHeader->string);
     mustWriteFd(sd, cgiVars, contentLength);
     }
@@ -1627,13 +1674,44 @@ static char *bodyNesters[] =
     "ADDRESS", "DIV", "H1", "H2", "H3", "H4", "H5", "H6",
     "ACRONYM", "BLOCKQUOTE", "CITE", "CODE", "DEL", "DFN"
     "DIR", "DL", "MENU", "OL", "UL", "CAPTION", "TABLE", 
-    "A", "MAP", "OBJECT", "FORM"
+    "A", "MAP", "OBJECT", "FORM", "DIV", "SCRIPT", "SVG"
 };
 
 static char *headNesters[] =
 /* Nesting tags that appear in header. */
 {
-    "TITLE",
+    "TITLE", "SCRIPT"
+};
+
+static char *singleTons[] =
+/* Tags which do not have closing tags. */
+{
+"AREA",
+"BASE",
+"BR",
+"COL",
+"COMMAND",
+"EMBED",
+"FRAME",  // not in html5
+"HR",
+"IMG",
+"INPUT",
+"LINK",
+"META",
+"PARAM",
+"SOURCE"
+};
+
+static char *selfClosers[] =
+/* Tags which can be optionally self-closing in html5 or SVG. */
+{
+"CIRCLE",   // SVG
+"ELLIPSE",  // SVG
+"LINE",     // SVG
+"PATH",     // SVG
+"POLYGON",  // SVG
+"POLYLINE", // SVG
+"RECT"      // SVG
 };
 
 static struct htmlTag *validateBody(struct htmlPage *page, struct htmlTag *startTag)
@@ -1658,11 +1736,13 @@ checkTagIsInside(page, "DIR MENU OL UL", "LI", startTag, endTag);
 checkTagIsInside(page, "DL", "DD DT", startTag, endTag);
 checkTagIsInside(page, "COLGROUP TABLE", "COL", startTag, endTag);
 checkTagIsInside(page, "MAP", "AREA", startTag, endTag);
+#ifdef OLD   /* These days input type controls allowed outside forms because of javascript */
 checkTagIsInside(page, "FORM SCRIPT", 
 	"INPUT BUTTON /BUTTON OPTION SELECT /SELECT TEXTAREA /TEXTAREA"
 	"FIELDSET /FIELDSET"
 	, 
 	startTag, endTag);
+#endif /* OLD */
 validateNestingTags(page, startTag, endTag, bodyNesters, ArraySize(bodyNesters));
 return endTag->next;
 }
@@ -1696,6 +1776,9 @@ okChars['!'] = 1;
 okChars['*'] = 1;
 okChars['@'] = 1;
 okChars['\''] = 1;  // apparently the apostrophe itself is ok
+okChars['|'] = 1;   // apparently the google uses pipe char
+okChars[','] = 1;   // apparently the google uses comma char
+okChars['#'] = 1;  // URI fragment, typically an anchor
 return okChars;
 }
 
@@ -1734,6 +1817,16 @@ for (form = page->forms; form != NULL; form = form->next)
 for (link = linkList; link != NULL; link = link->next)
     validateCgiUrl(link->name);
 slFreeList(&linkList);
+}
+
+static struct htmlTag *nextTagOfTypeInList(struct htmlTag *tagList, char *type)
+/* Return next tag of given type in list or NULL if none. */
+{
+struct htmlTag *tag;
+for (tag = tagList; tag != NULL; tag = tag->next)
+    if (sameString(tag->name, type))
+	return tag;
+return NULL;
 }
 
 static int countTagsOfType(struct htmlTag *tagList, char *type)
@@ -1789,11 +1882,12 @@ if (contentType == NULL || startsWith("text/html", contentType))
 	errAbort("No tags");
     if (!sameWord(tag->name, "HTML"))
 	errAbort("Doesn't start with <HTML> tag");
-    tag = tag->next;
-    if (tag == NULL || !sameWord(tag->name, "HEAD"))
-	warn("<HEAD> tag does not follow <HTML> tag");
+    struct htmlTag *headTag = nextTagOfTypeInList(tag->next, "HEAD");
+    if (headTag == NULL)
+        warn("No <HEAD> tag after <HTML> tag");
     else
 	{
+	tag = headTag;
 	for (;;)
 	    {
 	    tag = tag->next;
@@ -1809,7 +1903,7 @@ if (contentType == NULL || startsWith("text/html", contentType))
 	validateNestingTags(page, page->tags, tag, headNesters, ArraySize(headNesters));
 	tag = tag->next;
 	}
-    if (tag == NULL || !sameWord(tag->name, "BODY"))
+    if ((tag = nextTagOfTypeInList(tag, "BODY")) == NULL)
 	errAbort("<BODY> tag does not follow <HTML> tag");
     tag = validateBody(page, tag->next);
     if (tag == NULL || !sameWord(tag->name, "/HTML"))
@@ -1818,3 +1912,63 @@ if (contentType == NULL || startsWith("text/html", contentType))
     }
 }
 
+void htmlPageStrictTagNestCheck(struct htmlPage *page)
+/* Do strict tag nesting check.  Aborts if there is a problem. */
+{
+struct htmlTag *tag;
+/* To simplify things upper case all tag names. */
+for (tag = page->tags; tag != NULL; tag = tag->next)
+    touppers(tag->name);
+
+/* Add singleton tags to hash. */
+struct hash *singleTonHash = hashNew(8);
+int i;
+int count=ArraySize(singleTons);
+for (i=0; i<count; ++i)
+    hashAdd(singleTonHash, singleTons[i], NULL);
+
+/* Add selfCloser tags to hash. */
+struct hash *selfCloserHash = hashNew(8);
+count=ArraySize(selfClosers);
+for (i=0; i<count; ++i)
+    hashAdd(selfCloserHash, selfClosers[i], NULL);
+
+struct slName *tagStack = NULL;
+for (tag = page->tags; tag != NULL; tag = tag->next)
+    {
+    if (startsWith("/", tag->name))
+	{
+	if (hashLookup(singleTonHash, tag->name+1))
+	    tagAbort(page, tag, "Tag %s closing tag not allowed for singleton tags.", tag->name);
+	if (!sameString("P", tag->name+1))
+	    {
+	    if (!tagStack)
+		tagAbort(page, tag, "No tags still left on stack. Closing tag %s has no corresponding open tag.", tag->name);
+	    struct slName *top = slPopHead(&tagStack);
+	    // flush LI tags still on stack when /UL or /OL encountered
+	    // since the missing /LI tags are usually tolerated. 
+	    while ((sameString(tag->name, "/UL") || sameString(tag->name, "/OL")) && sameString(top->name,"LI"))
+		{
+		tagWarn(page, tag, "Closing tag %s found. LI tag on stack. Missing /LI tag. Please fix. Continuing.", tag->name);
+		top = slPopHead(&tagStack);
+		}
+	    if (!sameString(top->name,tag->name+1))
+		{
+		tagAbort(page, tag, "Closing tag %s found, tag %s at top of stack.", tag->name, top->name);
+		}
+	    }
+	}
+    else
+	{
+	if (
+	    ! hashLookup(singleTonHash, tag->name) 
+	 && !(hashLookup(selfCloserHash, tag->name) && isSelfClosingTag(tag))
+         && ! sameString("P", tag->name))
+	    {
+	    slAddHead(&tagStack, slNameNew(tag->name));
+	    }	    
+	}	    
+    }
+if (tagStack)
+    errAbort("Some tags still left on stack. Open tag %s missing its closing tag.", tagStack->name);
+}

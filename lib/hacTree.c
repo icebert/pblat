@@ -1,7 +1,14 @@
 /* hacTree - Hierarchical Agglomerative Clustering a list of inputs into a binary tree */
 
+/* Copyright (C) 2011 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
+#include "dlist.h"
+#include "hash.h"
 #include "hacTree.h"
+#include "synQueue.h"
+#include "pthreadDoList.h"
 
 static struct hacTree *leafNodesFromItems(const struct slList *itemList, int itemCount,
 					  struct lm *localMem)
@@ -58,7 +65,7 @@ return leafWraps;
 }
 
 INLINE void initNode(struct hacTree *node, const struct hacTree *left, const struct hacTree *right,
-		     hacDistanceFunction *distF, hacMergeFunction *mergeF, void *extraData)
+		     hacDistanceFunction *distF, hacMergeFunction *mergeF, void *extraData, bool distOnly)
 /* Initialize node to have left and right as its children.  Leave parent pointers
  * alone -- they would be unstable during tree construction. */
 {
@@ -66,8 +73,17 @@ node->left = (struct hacTree *)left;
 node->right = (struct hacTree *)right;
 if (left != NULL && right != NULL)
     {
-    node->childDistance = distF(left->itemOrCluster, right->itemOrCluster, extraData);
-    node->itemOrCluster = mergeF(left->itemOrCluster, right->itemOrCluster, extraData);
+    if (distOnly)
+        {
+	struct slList * el;
+	AllocVar(el);
+        node->childDistance = distF(left->itemOrCluster, right->itemOrCluster, extraData);
+        node->itemOrCluster = el;
+        }
+    else {
+        node->childDistance = distF(left->itemOrCluster, right->itemOrCluster, extraData);
+        node->itemOrCluster = mergeF(left->itemOrCluster, right->itemOrCluster, extraData);
+        }
     }
 }
 
@@ -87,11 +103,11 @@ if (runLength > 2)
 				     distF, mergeF, extraData, localMem);
     newClusters[1] = preClusterNodes(leafWraps, i+halfLength, runLength-halfLength,
 				     distF, mergeF, extraData, localMem);
-    initNode(&ret, &(newClusters[0]), &(newClusters[1]), distF, mergeF, extraData);
+    initNode(&ret, &(newClusters[0]), &(newClusters[1]), distF, mergeF, extraData, FALSE);
     }
 else if (runLength == 2)
     {
-    initNode(&ret, leafWraps[i].node, leafWraps[i+1].node, distF, mergeF, extraData);
+    initNode(&ret, leafWraps[i].node, leafWraps[i+1].node, distF, mergeF, extraData, FALSE);
     }
 else
     ret = *(leafWraps[i].node);
@@ -141,14 +157,14 @@ if (cmpF != NULL)
 int pairCount = (itemCount == 1) ? 1 : (itemCount * (itemCount-1) / 2);
 struct hacTree *pairPool = lmAlloc(localMem, pairCount * sizeof(struct hacTree));
 if (itemCount == 1)
-    initNode(pairPool, leafNodes, NULL, distF, mergeF, extraData);
+    initNode(pairPool, leafNodes, NULL, distF, mergeF, extraData, FALSE);
 else
     {
     int i, j, pairIx;
     for (i=0, pairIx=0;  i < itemCount-1;  i++)
 	for (j=i+1;  j < itemCount;  j++, pairIx++)
 	    initNode(&(pairPool[pairIx]), &(leafNodes[i]), &(leafNodes[j]), distF, mergeF,
-		     extraData);
+		     extraData, TRUE);
     }
 *retPairCount = pairCount;
 return pairPool;
@@ -225,6 +241,13 @@ while (poolLength > 0)
 	swapBytes((char *)&(poolHead[0]), (char *)&(poolHead[bestIx]), sizeof(struct hacTree));
     // Pop the best (lowest-distance) node from poolHead, make it root (for now).
     root = poolHead;
+    if (root->left && root->right)
+        root->itemOrCluster = mergeF(root->left->itemOrCluster, root->right->itemOrCluster,
+                                     extraData);
+    else if (root->left)
+        root->itemOrCluster = root->left->itemOrCluster;
+    else if (root->right)
+        root->itemOrCluster = root->right->itemOrCluster;
     poolHead = &(poolHead[1]);
     poolLength--;
     // Where root->left is found in the pool, replace it with root.
@@ -236,10 +259,10 @@ while (poolLength > 0)
 	struct hacTree *node = &(poolHead[i]);
 	if (node->left == root->left)
 	    // found root->left; replace node->left with root (merge root with node->right):
-	    initNode(node, root, node->right, distF, mergeF, extraData);
+	    initNode(node, root, node->right, distF, mergeF, extraData, FALSE);
 	else if (node->right == root->left)
 	    // found root->left; replace node->right with root (merge root with node->left):
-	    initNode(node, node->left, root, distF, mergeF, extraData);
+	    initNode(node, node->left, root, distF, mergeF, extraData, FALSE);
 	else if (node->left == root->right || node->right == root->right)
 	    // found root->right; mark this node for deletion:
 	    nodesToDelete[numNodesToDelete++] = i;
@@ -274,3 +297,234 @@ while (poolLength > 0)
 root->parent = NULL;
 return root;
 }
+
+/** The code from here on down is an alternative implementation that calls the merge
+ ** function and for that matter the distance function much less than the function
+ ** above, and also is multithreaded.  It does seem to produce the same output
+ ** but the algorithm is sufficiently different, at least for now, I'm keeping
+ ** both. */
+
+
+#define distKeySize 64  
+
+static void calcDistKey(void *a, void *b, char key[distKeySize])
+/* Put key for distance in key */
+{
+safef(key, distKeySize, "%p %p", a, b);
+}
+
+void hacTreeDistanceHashAdd(struct hash *hash, void *itemA, void *itemB, double distance)
+/* Add an item to distance hash */
+{
+char key[distKeySize];
+calcDistKey(itemA, itemB, key);
+hashAdd(hash, key, CloneVar(&distance));
+}
+
+double *hacTreeDistanceHashLookup(struct hash *hash, void *itemA, void *itemB)
+/* Look up pair in distance hash.  Returns NULL if not found, otherwise pointer to
+ * distance */
+{
+char key[distKeySize];
+calcDistKey(itemA, itemB, key);
+return hashFindVal(hash, key);
+}
+
+struct hctPair
+/* A pair of hacTree nodes and the distance between them */
+    {
+    struct hctPair *next;  /* Next in list */
+    struct hacTree *a, *b;	   /* The pair of nodes */
+    double distance;	   /* Distance between pair */
+    };
+
+struct distanceWorkerContext
+/* Context for a distance worker */
+    {
+    hacDistanceFunction *distF;	/* Function to call to calc distance */
+    void *extraData;		/* Extra data for that function */
+    };
+
+static void distanceWorker(void *item, void *context)
+/* fill in distance for pair */
+{
+struct hctPair *pair = item;
+struct distanceWorkerContext *dc = context;
+struct hacTree *aHt = pair->a, *bHt = pair->b;
+pair->distance = (dc->distF)((struct slList *)(aHt->itemOrCluster), 
+    (struct slList *)(bHt->itemOrCluster), dc->extraData);
+}
+
+static void precacheMissingDistances(struct dlList *list, struct hash *distanceHash,
+    hacDistanceFunction *distF, void *extraData, int threadCount)
+/* Force computation of all distances not already in hash */
+{
+/* Make up list of all missing distances in pairList */
+struct synQueue *sq = synQueueNew();
+struct hctPair *pairList = NULL, *pair;
+struct dlNode *aNode;
+for (aNode = list->head; !dlEnd(aNode); aNode = aNode->next)
+    {
+    struct hacTree *aHt = aNode->val;
+    struct dlNode *bNode;
+    for (bNode = aNode->next; !dlEnd(bNode); bNode = bNode->next)
+        {
+	struct hacTree *bHt = bNode->val;
+	char key[64];
+	calcDistKey(aHt->itemOrCluster, bHt->itemOrCluster, key);
+	double *pd = hashFindVal(distanceHash, key);
+	if (pd == NULL)
+	     {
+	     AllocVar(pair);
+	     pair->a = aHt;
+	     pair->b = bHt;
+	     slAddHead(&pairList, pair);
+	     synQueuePut(sq, pair);
+	     }
+	}
+    }
+
+/* Parallelize distance calculations */
+struct distanceWorkerContext context = {.distF=distF, .extraData=extraData};
+pthreadDoList(threadCount, pairList, distanceWorker, &context);
+
+for (pair = pairList; pair != NULL; pair = pair->next)
+    {
+    hacTreeDistanceHashAdd(distanceHash, 
+	pair->a->itemOrCluster, pair->b->itemOrCluster, pair->distance);
+    }
+slFreeList(&pairList);
+}
+
+static double pairParallel(struct dlList *list, struct hash *distanceHash, 
+    hacDistanceFunction *distF, void *extraData, int threadCount,
+    struct dlNode **retNodeA, struct dlNode **retNodeB)
+/* Loop through list returning closest two nodes */
+{
+precacheMissingDistances(list, distanceHash, distF, extraData, threadCount);
+struct dlNode *aNode;
+double closestDistance = BIGDOUBLE;
+struct dlNode *closestA = NULL, *closestB = NULL;
+for (aNode = list->head; !dlEnd(aNode); aNode = aNode->next)
+    {
+    struct hacTree *aHt = aNode->val;
+    struct dlNode *bNode;
+    for (bNode = aNode->next; !dlEnd(bNode); bNode = bNode->next)
+        {
+	struct hacTree *bHt = bNode->val;
+	char key[64];
+	safef(key, sizeof(key), "%p %p", aHt->itemOrCluster, bHt->itemOrCluster);
+	double *pd = hashMustFindVal(distanceHash, key);
+	double d = *pd;
+	if (d < closestDistance)
+	    {
+	    closestDistance = d;
+	    closestA = aNode;
+	    closestB = bNode;
+	    }
+	}
+    }
+*retNodeA = closestA;
+*retNodeB = closestB;
+return closestDistance;
+}
+
+static void lmDlAddValTail(struct lm *lm, struct dlList *list, void *val)
+/* Allocate new dlNode out of lm, initialize it with val, and add it to end of list */
+{
+struct dlNode *node;
+lmAllocVar(lm, node);
+node->val = val;
+dlAddTail(list, node);
+}
+
+struct hacTree *hacTreeMultiThread(int threadCount, struct slList *itemList, 
+		    struct lm *localMem, hacDistanceFunction *distF, 
+		    hacMergeFunction *mergeF, hacSibCmpFunction *cmpF,
+		    void *extraData, struct hash *precalcDistanceHash)
+/* Construct hacTree minimizing number of merges called, and doing distance calls
+ * in parallel when possible.   Do a lmCleanup(localMem) to free returned tree. 
+ * The inputs are
+ *	threadCount - number of threads - at least one, recommended no more than 15
+ *	itemList - list of items to tree up.  Format can vary, but must start with a
+ *	           pointer to next item in list.
+ *	localMem - memory pool where hacTree and a few other things are allocated from
+ *	distF - function that calculates distance between two items, passed items and extraData
+ *	mergeF - function that creates a new item in same format as itemList from two passed
+ *	         in items and the extraData.  Typically does average of two input items
+ *	cmpF - function that compares two items being merged to decide who becomes left child
+ *		and who is the right child. 
+ *	extraData - parameter passed through to distF and mergeF, otherwise unused, may be NULL
+ *	precalcDistanceHash - a hash containing at least some of the pairwise distances
+ *	            between items on itemList, set with hacTreeDistanceHashAdd. 
+ *	            As a side effect this hash will be expanded to include all distances 
+ *	            including those between intermediate nodes. */
+{
+/* Make up a doubly-linked list in 'remaining' with all items in it */
+struct dlList remaining;
+dlListInit(&remaining);
+struct slList *item;
+int count = 0;
+struct hash *distanceHash = (precalcDistanceHash ? precalcDistanceHash : hashNew(0));
+for (item = itemList; item != NULL; item = item->next)
+    {
+    struct hacTree *ht;
+    lmAllocVar(localMem, ht);
+    ht->itemOrCluster = item;
+    lmDlAddValTail(localMem, &remaining, ht);
+    count += 1;
+    }
+
+/* Loop through finding closest and merging until only one node left on remaining. */
+int i;
+for (i=1; i<count; ++i)
+    {
+    /* Find closest pair */
+    struct dlNode *aNode, *bNode;
+    double distance = pairParallel(&remaining, distanceHash, distF, extraData, threadCount,
+	&aNode, &bNode);
+
+    /* Allocated new hacTree item for them and fill it in with a merged value. */
+    struct hacTree *ht, *left, *right;
+    lmAllocVar(localMem, ht);
+    
+    /* Check if the user provided a function to determine sibling perference */ 
+    
+    if (cmpF != NULL)
+	{
+	if (cmpF(((struct hacTree *)aNode->val)->itemOrCluster, ((struct hacTree *)bNode->val)->itemOrCluster, extraData))
+	    {
+	    left = ht->left = aNode->val;
+	    right = ht->right = bNode->val;
+	    }
+	else{
+	    left = ht->left = bNode->val;
+	    right = ht->right = aNode->val;
+	    }
+	}
+    else{
+	left = ht->left = aNode->val;
+	right = ht->right = bNode->val;
+	}
+    left->parent = right->parent = ht;
+    ht->itemOrCluster = mergeF(left->itemOrCluster, right->itemOrCluster, extraData);
+    ht->childDistance = distance;
+
+    /* Put merged item onto remaining list before first matching node in pair. */
+    struct dlNode *mergedNode;
+    lmAllocVar(localMem, mergedNode);
+    mergedNode->val = ht;
+    dlAddBefore(aNode, mergedNode);
+
+    /* Remove nodes we merged out */
+    dlRemove(aNode);
+    dlRemove(bNode);
+    }
+
+/* Clean up and go home. */
+if (distanceHash != precalcDistanceHash)
+    hashFree(&distanceHash);
+struct dlNode *lastNode = dlPopHead(&remaining);
+return lastNode->val;
+}
+

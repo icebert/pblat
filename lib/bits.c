@@ -77,6 +77,33 @@ void bitFree(Bits **pB)
 freez(pB);
 }
 
+Bits *lmBitAlloc(struct lm *lm,int bitCount)
+// Allocate bits.  Must supply local memory.
+{
+assert(lm != NULL);
+int byteCount = ((bitCount+7)>>3);
+return lmAlloc(lm,byteCount);
+}
+
+Bits *lmBitRealloc(struct lm *lm,Bits *b, int bitCount, int newBitCount)
+// Resize a bit array.  If b is null, allocate a new array.  Must supply local memory.
+{
+assert(lm != NULL);
+int byteCount = ((bitCount+7)>>3);
+int newByteCount = ((newBitCount+7)>>3);
+return lmAllocMoreMem(lm, b ,byteCount, newByteCount);
+}
+
+Bits *lmBitClone(struct lm *lm,Bits* orig, int bitCount)
+// Clone bits.  Must supply local memory.
+{
+assert(lm != NULL);
+int byteCount = ((bitCount+7)>>3);
+Bits* bits = lmAlloc(lm,byteCount);
+memcpy(bits, orig, byteCount);
+return bits;
+}
+
 void bitSetOne(Bits *b, int bitIx)
 /* Set a single bit. */
 {
@@ -231,6 +258,19 @@ while (--byteCount >= 0)
     }
 }
 
+int bitAndCount(Bits *a, Bits *b, int bitCount)
+// Without altering 2 bitmaps, count the AND bits.
+{
+int byteCount = ((bitCount+7)>>3);
+int count = 0;
+if (!inittedBitsInByte)
+    bitsInByteInit();
+while (--byteCount >= 0)
+    count += bitsInByte[(*a++ & *b++)];
+
+return count;
+}
+
 void bitOr(Bits *a, Bits *b, int bitCount)
 /* Or two bitmaps.  Put result in a. */
 {
@@ -240,6 +280,19 @@ while (--byteCount >= 0)
     *a = (*a | *b++);
     a++;
     }
+}
+
+int bitOrCount(Bits *a, Bits *b, int bitCount)
+// Without altering 2 bitmaps, count the OR'd bits.
+{
+int byteCount = ((bitCount+7)>>3);
+int count = 0;
+if (!inittedBitsInByte)
+    bitsInByteInit();
+while (--byteCount >= 0)
+    count += bitsInByte[(*a++ | *b++)];
+
+return count;
 }
 
 void bitXor(Bits *a, Bits *b, int bitCount)
@@ -252,6 +305,19 @@ while (--byteCount >= 0)
     }
 }
 
+int bitXorCount(Bits *a, Bits *b, int bitCount)
+// Without altering 2 bitmaps, count the XOR'd bits.
+{
+int byteCount = ((bitCount+7)>>3);
+int count = 0;
+if (!inittedBitsInByte)
+    bitsInByteInit();
+while (--byteCount >= 0)
+    count += bitsInByte[(*a++ ^ *b++)];
+
+return count;
+}
+
 void bitNot(Bits *a, int bitCount)
 /* Flip all bits in a. */
 {
@@ -262,6 +328,31 @@ while (--byteCount >= 0)
     a++;
     }
 }
+
+void bitReverseRange(Bits *bits, int startIx, int bitCount)
+// Reverses bits in range (e.g. 110010 becomes 010011)
+{
+if (bitCount <= 0)
+    return;
+int ixA = startIx;
+int ixB = (startIx + bitCount - 1);
+for ( ;ixA < ixB; ixA++, ixB--)
+    {
+    boolean bitA = bitReadOne(bits, ixA);
+    boolean bitB = bitReadOne(bits, ixB);
+    if (!bitA && bitB)
+        {
+        bitSetOne(  bits, ixA);
+        bitClearOne(bits, ixB);
+        }
+    else if (bitA && !bitB)
+        {
+        bitClearOne(bits, ixA);
+        bitSetOne(  bits, ixB);
+        }
+    }
+}
+
 
 void bitPrint(Bits *a, int startIx, int bitCount, FILE* out)
 /* Print part or all of bit map as a string of 0s and 1s.  Mostly useful for
@@ -276,5 +367,52 @@ for (i = startIx; i < bitCount; i++)
         fputc('0', out);
     }
 fputc('\n', out);
+}
+
+void bitsOut(FILE* out, Bits *bits, int startIx, int bitCount, boolean onlyOnes)
+// Print part or all of bit map as a string of 0s and 1s.
+// If onlyOnes, enclose result in [] and use ' ' instead of '0'.
+{
+if (onlyOnes)
+    fputc('[', out);
+
+int ix = startIx;
+for ( ; ix < bitCount; ix++)
+    {
+    if (bitReadOne(bits, ix))
+        fputc('1', out);
+    else
+        {
+        if (onlyOnes)
+            fputc(' ', out);
+        else
+            fputc('0', out);
+        }
+    }
+if (onlyOnes)
+    fputc(']', out);
+}
+
+Bits *bitsIn(struct lm *lm,char *bitString, int len)
+// Returns a bitmap from a string of 1s and 0s.  Any non-zero, non-blank char sets a bit.
+// Returned bitmap is the size of len even if that is longer than the string.
+// Optionally supply local memory.  Note does NOT handle enclosing []s printed with bitsOut().
+{
+if (bitString == NULL || len == 0)
+    return NULL;
+
+Bits *bits = NULL;
+if (lm != NULL)
+    bits = lmBitAlloc(lm,len);
+else
+    bits = bitAlloc(len);
+
+int ix = 0;
+for ( ;ix < len && bitString[ix] != '\0'; ix++)
+    {
+    if (bitString[ix] != '0' && bitString[ix] != ' ')
+        bitSetOne(bits, ix);
+    }
+return bits;
 }
 

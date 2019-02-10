@@ -1171,7 +1171,6 @@ static struct ffAli *rwFindTilesBetween(DNA *ns, DNA *ne, DNA *hs, DNA *he,
     int needleSize = ne - ns;
     int numTiles = 0;
     int bestWeaveVal;
-    int tileIx;
     struct ffAli *hitList = NULL;
     struct ffAli *bestAli;
     struct ffAli *ali;
@@ -1184,7 +1183,6 @@ static struct ffAli *rwFindTilesBetween(DNA *ns, DNA *ne, DNA *hs, DNA *he,
 
     searchOffset = 0;
     endTileOffset = 0;
-    tileIx = 0;
     for (;;)
     {
         DNA *tile;

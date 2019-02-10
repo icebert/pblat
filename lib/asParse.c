@@ -1,10 +1,14 @@
 /* asParse - parse out an autoSql .as file. */
 
+/* Copyright (C) 2014 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 #include "common.h"
 #include "linefile.h"
 #include "tokenizer.h"
 #include "dystring.h"
 #include "asParse.h"
+#include "sqlNum.h"
 
 
 /* n.b. switched double/float from %f to %g to partially address losing
@@ -32,19 +36,27 @@ struct asTypeInfo asTypes[] = {
     {t_simple,  "simple",  FALSE, FALSE, "longblob",          "!error!",       "Simple",   "Simple",   NULL,   "TextField"},
 };
 
+struct asTypeInfo *asTypeFindLow(char *name)
+/* Return asType for a low level type of given name.  (Low level because may be decorated 
+ * with array or pointer  stuff at a higher level).  Returns NULL if not found. */
+{
+int i;
+for (i=0; i<ArraySize(asTypes); ++i)
+    {
+    if (sameWord(asTypes[i].name, name))
+	return &asTypes[i];
+    }
+return NULL;
+}
+
 static struct asTypeInfo *findLowType(struct tokenizer *tkz)
 /* Return low type info.  Squawk and die if s doesn't
  * correspond to one. */
 {
-char *s = tkz->string;
-int i;
-for (i=0; i<ArraySize(asTypes); ++i)
-    {
-    if (sameWord(asTypes[i].name, s))
-	return &asTypes[i];
-    }
-tokenizerErrAbort(tkz, "Unknown type '%s'", s);
-return NULL;
+struct asTypeInfo *type = asTypeFindLow(tkz->string);
+if (type == NULL)
+    tokenizerErrAbort(tkz, "Unknown type '%s'", tkz->string);
+return type;
 }
 
 static void sqlSymDef(struct asColumn *col, struct dyString *dy)
@@ -58,7 +70,7 @@ for (val = col->values; val != NULL; val = val->next)
     if (val->next != NULL)
         dyStringAppend(dy, ", ");
     }
-dyStringPrintf(dy, ") ");
+dyStringPrintf(dy, ")");
 }
 
 struct dyString *asColumnToSqlType(struct asColumn *col)
@@ -80,38 +92,61 @@ return type;
 char *asTypeNameFromSqlType(char *sqlType)
 /* Return the autoSql type name (not enum) for the given SQL type, or NULL.
  * Don't attempt to free result. */
+// Unfortunately, when sqlType is longblob, we don't know whether it's a list
+// of some type or an lstring.  :(
 {
 if (sqlType == NULL)
     return NULL;
-// We need to strip '(...)' strings from all types except 'varchar' which must be 'varchar(255)'
-int len = strlen(sqlType) + 8;
-char buf[len];
+// For comparison with asTypes[*], we need to strip '(...)' strings from all types
+// except 'varchar' which must be 'varchar(255)'.  For 'char', we need to remember
+// what was in the '(...)' so we can add back the '[...]' after type comparison.
+boolean isArray = FALSE;
+int arraySize = 0;
+static char buf[1024];
 if (startsWith("varchar", sqlType))
-    safecpy(buf, len, "varchar(255)");
+    safecpy(buf, sizeof(buf), "varchar(255)");
+else if (sameString("blob", sqlType))
+    safecpy(buf, sizeof(buf), "longblob");
 else
     {
-    safecpy(buf, len, sqlType);
+    safecpy(buf, sizeof(buf), sqlType);
     char *leftParen = strstr(buf, " (");
     if (leftParen == NULL)
 	leftParen = strchr(buf, '(');
     if (leftParen != NULL)
 	{
+	isArray = startsWith("char", sqlType);
 	char *rightParen = strrchr(leftParen, ')');
 	if (rightParen != NULL)
 	    {
+	    *rightParen = '\0';
+	    arraySize = atoi(leftParen+1);
 	    strcpy(leftParen, rightParen+1);
 	    }
+	else
+	    errAbort("asTypeNameFromSqlType: mismatched ( in sql type def'%s'", sqlType);
 	}
     }
 int i;
 for (i = 0;  i < ArraySize(asTypes);  i++)
     if (sameString(buf, asTypes[i].sqlName))
-	return asTypes[i].name;
+	{
+	if (isArray)
+	    {
+	    int typeLen = strlen(buf);
+	    safef(buf+typeLen, sizeof(buf)-typeLen, "[%d]", arraySize);
+	    return buf;
+	    }
+	else
+	    return asTypes[i].name;
+	}
+if (sameString(buf, "date"))
+    return "string";
 return NULL;
 }
 
-static struct asColumn *mustFindColumn(struct asObject *table, char *colName)
-/* Return column or die. */
+static struct asColumn *findColumn(struct asObject *table, char *colName)
+/* Return column or null. */
 {
 struct asColumn *col;
 
@@ -120,8 +155,25 @@ for (col = table->columnList; col != NULL; col = col->next)
     if (sameWord(col->name, colName))
 	return col;
     }
-errAbort("Couldn't find column %s", colName);
 return NULL;
+}
+
+static void mustNotFindColumn(struct asObject *table, char *colName)
+/* Die if column found. */
+{
+struct asColumn *col = findColumn(table, colName);
+if (col)
+    errAbort("duplicate column names found: %s, %s", col->name, colName);
+}
+
+
+static struct asColumn *mustFindColumn(struct asObject *table, char *colName)
+/* Return column or die. */
+{
+struct asColumn *col = findColumn(table, colName);
+if (!col)
+    errAbort("Couldn't find column %s", colName);
+return col;
 }
 
 static struct asObject *findObType(struct asObject *objList, char *obName)
@@ -185,8 +237,41 @@ tokenizerMustMatch(tkz, ")");
 slReverse(&col->values);
 }
 
+int tokenizerUnsignedVal(struct tokenizer *tkz)
+/* Ensure current token is an unsigned integer and return value */
+{
+if (!isdigit(tkz->string[0]))
+    {
+    struct lineFile *lf = tkz->lf;
+    errAbort("expecting number got %s line %d of %s", tkz->string, lf->lineIx, lf->fileName);
+    }
+return sqlUnsigned(tkz->string);
+}
+
+struct asIndex *asParseIndex(struct tokenizer *tkz, struct asColumn *col)
+/* See if there's an index key word and if so parse it and return an asIndex
+ * based on it.  If not an index key word then just return NULL. */
+{
+struct asIndex *index = NULL;
+if (sameString(tkz->string, "primary") || sameString(tkz->string, "unique")
+	|| sameString(tkz->string, "index") )
+    {
+    AllocVar(index);
+    index->type = cloneString(tkz->string);
+    tokenizerMustHaveNext(tkz);
+    if (tkz->string[0] == '[')
+	{
+	tokenizerMustHaveNext(tkz);
+	index->size = tokenizerUnsignedVal(tkz);
+	tokenizerMustHaveNext(tkz);
+	tokenizerMustMatch(tkz, "]");
+	}
+    }
+return index;
+}
+
 static void asParseColDef(struct tokenizer *tkz, struct asObject *obj)
-/* Parse a column definintion */
+/* Parse a column definition */
 {
 struct asColumn *col;
 AllocVar(col);
@@ -206,7 +291,16 @@ else if (tkz->string[0] == '(')
     asParseColSymSpec(tkz, obj, col);
 
 col->name = cloneString(tkz->string);
+mustNotFindColumn(obj, col->name);  // check for duplicate column name
 tokenizerMustHaveNext(tkz);
+col->index = asParseIndex(tkz, col);
+if (sameString(tkz->string, "auto"))
+    {
+    col->autoIncrement = TRUE;
+    if (!asTypesIsInt(col->lowType->type))
+        errAbort("error - auto with non-integer type for field %s", col->name);
+    tokenizerMustHaveNext(tkz);
+    }
 tokenizerMustMatch(tkz, ";");
 col->comment = cloneString(tkz->string);
 tokenizerMustHaveNext(tkz);
@@ -463,6 +557,28 @@ if (asObj!= NULL)
 return asCol;
 }
 
+int asColumnFindIx(struct asColumn *list, char *name)
+/* Return index of first element of asColumn list that matches name.
+ * Return -1 if not found. */
+{
+struct asColumn *ac;
+int ix = 0;
+for (ac = list; ac != NULL; ac = ac->next, ix++)
+    if (sameString(name, ac->name))
+        return ix;
+return -1;
+}
+
+int asColumnMustFindIx(struct asColumn *list, char *name)
+/* Return index of first element of asColumn list that matches name.
+ * errAbort if not found. */
+{
+int ix = asColumnFindIx(list, name);
+if (ix < 0)
+    errAbort("asColumnMustFindIx: cannot find column \"%s\" in list", name);
+return ix;
+}
+
 boolean asCompareObjs(char *name1, struct asObject *as1, char *name2, struct asObject *as2, int numColumnsToCheck,
  int *retNumColumnsSame, boolean abortOnDifference)
 /* Compare as-objects as1 and as2 making sure several important fields show they are the same name and type.
@@ -560,4 +676,21 @@ if (differencesFound)
 if (retNumColumnsSame)
     *retNumColumnsSame = checkCount;
 return (!differencesFound);
+}
+
+boolean asColumnNamesMatchFirstN(struct asObject *as1, struct asObject *as2, int n)
+/* Compare only the column names of as1 and as2, not types because if an asObj has been
+ * created from sql type info, longblobs are cast to lstrings but in the proper autoSql
+ * might be lists instead (e.g. longblob in sql, uint exonStarts[exonCount] in autoSql. */
+{
+struct asColumn *col1 = as1->columnList, *col2 = as2->columnList;
+int checkCount = 0;
+for (col1 = as1->columnList, col2 = as2->columnList;
+     col1 != NULL && col2 != NULL && checkCount < n;
+     col1 = col1->next, col2 = col2->next, ++checkCount)
+    {
+    if (!sameOk(col1->name, col2->name))
+	return FALSE;
+    }
+return TRUE;
 }

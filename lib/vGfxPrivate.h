@@ -1,6 +1,9 @@
 /* vGfx private - stuff that the implementers of 
  * a vGfx need to know about, but not the clients. */
 
+/* Copyright (C) 2010 The Regents of the University of California 
+ * See README in this or parent directory for licensing information. */
+
 
 struct vGfx *vgHalfInit(int width, int height);
 /* Return a partially initialized vGfx structure. 
@@ -37,6 +40,10 @@ typedef void (*vg_verticalSmear)(void *v,
 typedef void (*vg_fillUnder)(void *v, int x1, int y1, 
 	int x2, int y2, int bottom, Color color);
 typedef void (*vg_drawPoly)(void *v, struct gfxPoly *poly, Color color, boolean filled);
+typedef void (*vg_ellipse)(void *v, int x1, int y1, int x2, int y2, Color color, 
+                                int mode, boolean isDashed);
+typedef int (*vg_curve)(void *v, int x1, int y1, int x2, int y2, int x3, int y3, Color color,
+                                boolean isDashed);
 typedef void (*vg_setHint)(void *v, char *hint, char *value);
 typedef char * (*vg_getHint)(void *v, char *hint);
 typedef int (*vg_getFontPixelHeight)(void *v, void *font);
