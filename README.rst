@@ -41,8 +41,14 @@ Wang M & Kong L. **pblat: a multithread blat algorithm speeding up aligning sequ
 to genomes**. *BMC Bioinformatics* 2019, 20(1). `[full text]
 <https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-019-2597-8>`_
 
+Docker
+---------------
+docker run icebert/pblat [options]
+
 ----
 
-Copyright (C) 2012 - 2019 Wang Meng
+Copyright (C) 2012 - 2020 Wang Meng
 
-Contact me: wangm@mail.cbi.pku.edu.cn 
+Contact me: wangm@mail.cbi.pku.edu.cn
+
+

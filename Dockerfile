@@ -1,9 +1,7 @@
-# Build using `docker build -t pblat -f Dockerfile .`
-# Run using `docker run -u $(id -u):$(id -g) -v $(pwd):/data pblat` 
-
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential make libssl-dev zlib1g-dev
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev zlib1g-dev
 COPY . /app
-RUN cd /app && make && cp ./pblat /usr/bin/pblat
+RUN make && cp ./pblat /usr/bin/pblat && rm -rf * .git .travis.yml
 CMD pblat
+
