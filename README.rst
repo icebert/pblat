@@ -43,7 +43,7 @@ to genomes**. *BMC Bioinformatics* 2019, 20(1). `[full text]
 
 Docker
 ---------------
-docker run icebert/pblat [options]
+docker run -u $(id -u):$(id -g) -v $(pwd):/data icebert/pblat -threads=4 /data/database.fa /data/query.fa /data/out.psl
 
 ----
 
