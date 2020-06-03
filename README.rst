@@ -3,9 +3,13 @@ parallelized blat
 =================
 blat with multi-threads support
 -------------------------------
-.. image:: https://travis-ci.org/icebert/pblat.svg?branch=master
-    :target: https://travis-ci.org/icebert/pblat
+|build| |install|
 
+.. |build| image:: https://travis-ci.org/icebert/pblat.svg?branch=master
+           :target: https://travis-ci.org/icebert/pblat
+
+.. |install| image:: https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat
+             :target: http://bioconda.github.io/recipes/pblat/README.html
 
 When the query file format is fasta, you can specify many threads to process it.
 It can reduce run time linearly, and use almost equal memory as the original blat
