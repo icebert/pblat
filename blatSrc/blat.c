@@ -696,8 +696,11 @@ void bigBlat(struct dnaSeq *untransList, int queryCount, char *queryFiles[], str
                         frame = fwrite(buf, 1, cnt, out[0]);
                         if (frame != cnt)
                         {
-                            printf("Merge files failed\n");
-                            return;
+                            free(thd);
+                            free(args);
+                            free(id);
+                            free(offset);
+                            errAbort("Merge files failed\n");
                         }
                     }
                     out[i] = freopen(NULL, "w+", out[i]);
@@ -946,7 +949,7 @@ int main(int argc, char *argv[])
         lf[i] = lineFileOpen(queryFiles[0], TRUE);
     }
 
-    
+
     queryCount=0;
     struct lineFile *tlf = lineFileOpen(queryFiles[0], TRUE);
     while (faMixedSpeedReadNext(tlf, NULL, NULL, NULL, &faFastBuf, &faFastBufSize))
@@ -993,8 +996,8 @@ int main(int argc, char *argv[])
                 tmp=fwrite(buf, 1, cnt, out[0]);
                 if (tmp!=cnt)
                 {
-                    printf("Merge files failed\n");
-                    return 1;
+                    free(out);
+                    errAbort("Merge files failed\n");
                 }
             }
             carefulClose(&(out[i]));
