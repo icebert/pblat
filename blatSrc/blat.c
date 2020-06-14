@@ -571,7 +571,7 @@ void bigBlat(struct dnaSeq *untransList, int queryCount, char *queryFiles[], str
              boolean qIsDna, FILE *out[], struct gfOutput *gvo[], boolean showStatus)
 /* Run query against translated DNA database (3 frames on each strand). */
 {
-    int             frame, i;
+    int             frame, cnt, i;
     struct dnaSeq   *seq;
     struct genoFind *gfs[3];
     aaSeq           *dbSeqLists[3];
@@ -582,6 +582,7 @@ void bigBlat(struct dnaSeq *untransList, int queryCount, char *queryFiles[], str
     boolean         forceLower = FALSE;
     boolean         toggle = FALSE;
     boolean         maskUpper = FALSE;
+    char            buf[1024];
 
     pthread_t*      thd = (pthread_t*)malloc(sizeof(pthread_t)*threads);
     void***         args = (void***)malloc(sizeof(void*)*threads);
@@ -590,7 +591,7 @@ void bigBlat(struct dnaSeq *untransList, int queryCount, char *queryFiles[], str
 
 
     if (showStatus)
-        printf("Blatx %d sequences in database, %d sequences in query\n", slCount(untransList), queryCount);
+        printf("Blatx %d sequences in database, %d sequences in each query\n", slCount(untransList), queryCount);
 
     /* Figure out how to manage query case.  Proteins want to be in
      * upper case, generally, nucleotides in lower case.  But there
@@ -681,8 +682,28 @@ void bigBlat(struct dnaSeq *untransList, int queryCount, char *queryFiles[], str
         }
 
         /* Rewind each input file pointer for RC run */
-        for (i=0; i<threads; i++)
-            lineFileSeek(lf[i], offset[i], SEEK_SET);
+        if (isRc == FALSE)
+        {
+            for (i=0; i<threads; i++)
+                lineFileSeek(lf[i], offset[i], SEEK_SET);
+            if (threads > 1)
+            {
+                for (i=1; i<threads; i++)
+                {
+                    rewind(out[i]);
+                    while((cnt=fread(buf, 1, 1024, out[i])) > 0)
+                    {
+                        frame = fwrite(buf, 1, cnt, out[0]);
+                        if (frame != cnt)
+                        {
+                            printf("Merge files failed\n");
+                            return 1;
+                        }
+                    }
+                    out[i] = freopen(NULL, "w+", out[i]);
+                }
+            }
+        }
     }
 
     free(thd);
