@@ -711,7 +711,7 @@ void htmlVaBadRequestAbort(char *format, va_list args)
 puts("Status: 400\r");
 puts("Content-Type: text/plain; charset=UTF-8\r");
 puts("\r");
-if (format != NULL && args != NULL)
+if (format != NULL && &args != NULL)
     {
     vfprintf(stdout, format, args);
     fprintf(stdout, "\n");
